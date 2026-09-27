@@ -22,6 +22,8 @@ export interface Lap {
   samples: LapSample[];
   maxSpeed: number;
   carOrdinal: number;
+  /** DistanceTraveled at the start of the lap */
+  startDist: number;
 }
 
 /**
@@ -31,7 +33,6 @@ export interface Lap {
 export class LapTracker {
   laps: Lap[] = [];
   current: Lap | null = null;
-  private lapStartDist = 0;
   private lastRaceTime = 0;
   /** incremented on every structural change so UIs can cheaply detect updates */
   version = 0;
@@ -51,9 +52,24 @@ export class LapTracker {
 
   push(f: Frame) {
     if (!f.isRaceOn) return;
-    // New race detected: race clock went backwards.
-    if (f.currentRaceTime + 0.5 < this.lastRaceTime) this.reset();
-    this.lastRaceTime = f.currentRaceTime;
+    const rt = f.currentRaceTime;
+    if (rt < 1.5 && this.lastRaceTime > 3) {
+      // race clock restarted → new event
+      this.reset();
+    } else if (rt + 0.05 < this.lastRaceTime && this.current) {
+      // rewind: step back over a lap line if needed, then drop the undone samples
+      const prevLap = this.laps.at(-1);
+      if (f.lapNumber === this.current.number - 1 && prevLap?.number === f.lapNumber) {
+        this.current = this.laps.pop()!;
+        this.current.time = 0;
+      }
+      if (f.lapNumber === this.current.number) {
+        const s = this.current.samples;
+        while (s.length && s[s.length - 1].t > f.currentLap) s.pop();
+      }
+      this.version++;
+    }
+    this.lastRaceTime = rt;
 
     if (!this.current || f.lapNumber !== this.current.number) {
       if (this.current && f.lapNumber === this.current.number + 1) {
@@ -63,13 +79,12 @@ export class LapTracker {
       } else if (this.current && f.lapNumber < this.current.number) {
         this.reset();
       }
-      this.current = { number: f.lapNumber, time: 0, samples: [], maxSpeed: 0, carOrdinal: f.carOrdinal };
-      this.lapStartDist = f.distanceTraveled;
+      this.current = { number: f.lapNumber, time: 0, samples: [], maxSpeed: 0, carOrdinal: f.carOrdinal, startDist: f.distanceTraveled };
       this.version++;
     }
 
     const c = this.current;
-    const d = f.distanceTraveled - this.lapStartDist;
+    const d = f.distanceTraveled - c.startDist;
     const last = c.samples.at(-1);
     // Keep samples monotonic in distance so interpolation stays valid.
     if (last && d < last.d) return;

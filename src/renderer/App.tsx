@@ -3,6 +3,7 @@ import type { Settings, Status } from '../shared/ipc';
 import { carClassName, CLASS_COLORS, drivetrainName, fmtDuration } from '../shared/units';
 import { FALLBACK_SETTINGS, SettingsContext, StatusContext, useFrame, useStale, useStatus, useSettings } from './hooks';
 import { replay } from './replay';
+import { store } from './store';
 import { IconCar, IconChart, IconFlag, IconFolder, IconGauge, IconList, IconMap, IconPause, IconPlay, IconSettings, IconX } from './components/icons';
 import { CockpitPage } from './pages/Cockpit';
 import { CarPage } from './pages/Car';
@@ -20,7 +21,7 @@ const PAGES: { id: PageId; label: string; icon: ReactNode }[] = [
   { id: 'car', label: 'Araç & Lastikler', icon: <IconCar /> },
   { id: 'map', label: 'Harita', icon: <IconMap /> },
   { id: 'charts', label: 'Grafikler', icon: <IconChart /> },
-  { id: 'laps', label: 'Turlar', icon: <IconFlag /> },
+  { id: 'laps', label: 'Yarış & Turlar', icon: <IconFlag /> },
   { id: 'sessions', label: 'Kayıtlar', icon: <IconFolder /> },
   { id: 'raw', label: 'Ham Veri', icon: <IconList /> },
 ];
@@ -167,10 +168,10 @@ function TitleBar() {
 function WaitingOverlay({ onSettings }: { onSettings: () => void }) {
   const stale = useStale(2500);
   const status = useStatus();
-  const f = useFrame();
+  useFrame();
   const replayActive = useSyncExternalStore(replay.subscribe.bind(replay), () => replay.active);
   if (replayActive) return null;
-  const inMenu = !stale && !f.isRaceOn;
+  const inMenu = !stale && !store.raceOn;
   if (!stale && !inMenu) return null;
   const ip = status?.localAddresses[0] ?? '—';
   return (

@@ -13,7 +13,7 @@ export function MapPage() {
   const api = useRef<{ fit: () => void; setFollow: (f: boolean) => void } | null>(null);
 
   return (
-    <div className="panel" style={{ padding: 0, height: 'calc(100vh - 56px - 36px)', minHeight: 500, overflow: 'hidden' }}>
+    <div className="panel" style={{ padding: 0, height: '100%', minHeight: 500, overflow: 'hidden' }}>
       <TrackCanvas colorBy={mode} follow={follow} zoom={1.2} viewRef={api} />
 
       <div style={{ position: 'absolute', top: 14, left: 14, display: 'flex', gap: 10, alignItems: 'center' }}>

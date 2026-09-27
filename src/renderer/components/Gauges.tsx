@@ -18,7 +18,7 @@ const START = -135;
 const SWEEP = 270;
 
 export function redlineOf(f: Frame) {
-  return f.engineMaxRpm * 0.9;
+  return (f.engineMaxRpm || 8000) * 0.9;
 }
 
 export function Tachometer({ f, units, size = 440 }: { f: Frame; units: UnitPrefs; size?: number }) {
@@ -109,7 +109,7 @@ export function ShiftLights({ f }: { f: Frame }) {
   const hi = redlineOf(f);
   const k = Math.max(0, Math.min(1, (f.currentEngineRpm - lo) / (hi - lo)));
   const lit = Math.round(k * N);
-  const flash = f.currentEngineRpm >= hi && Math.floor(performance.now() / 90) % 2 === 0;
+  const flash = f.currentEngineRpm > 0 && f.currentEngineRpm >= hi && Math.floor(performance.now() / 90) % 2 === 0;
   return (
     <div style={{ display: 'flex', gap: 7, justifyContent: 'center', padding: '4px 0 2px' }}>
       {Array.from({ length: N }, (_, i) => {

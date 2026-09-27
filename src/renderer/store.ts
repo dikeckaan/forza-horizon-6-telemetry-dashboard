@@ -1,5 +1,6 @@
 import { parsePacket, type Frame } from '../shared/packet';
 import { LapTracker } from '../shared/laps';
+import { RaceTracker, type RouteRecord } from '../shared/race';
 import { G } from '../shared/units';
 
 /** Channels kept in the rolling history buffer (for charts). */
@@ -31,6 +32,15 @@ export const CHANNELS = [
   'slipRR',
 ] as const;
 export type Channel = (typeof CHANNELS)[number];
+
+const ROUTES_KEY = 'fh.routes.v1';
+function loadRoutes(): Record<string, RouteRecord> {
+  try {
+    return JSON.parse(localStorage.getItem(ROUTES_KEY) ?? '{}');
+  } catch {
+    return {};
+  }
+}
 
 const HIST_CAP = 60 * 130; // ~2 min at 60 Hz
 
@@ -81,7 +91,10 @@ class Ring {
 }
 
 export class TelemetryStore {
+  /** latest frame; while the game is in a menu this stays on the last driving frame */
   frame: Frame | null = null;
+  /** whether the most recent packet was race-on */
+  raceOn = false;
   source: Source = 'live';
   /** increments on every ingested packet */
   version = 0;
@@ -93,6 +106,15 @@ export class TelemetryStore {
   trail: TrailPoint[] = [];
   gTrail: { lat: number; long: number }[] = [];
   laps = new LapTracker();
+  /** current event + learned sprint routes (persisted only from live data) */
+  race = new RaceTracker(loadRoutes(), (routes) => {
+    if (this.source !== 'live') return;
+    try {
+      localStorage.setItem(ROUTES_KEY, JSON.stringify(routes));
+    } catch {
+      /* storage full or unavailable: progress still works this session */
+    }
+  });
 
   odometer = 0;
   maxSpeed = 0;
@@ -108,12 +130,15 @@ export class TelemetryStore {
 
   reset() {
     this.frame = null;
+    this.raceOn = false;
     this.version++;
     this.time = 0;
     this.hist.clear();
     this.trail = [];
     this.gTrail = [];
     this.laps.reset();
+    this.race.reset();
+    this.race.routes = loadRoutes();
     this.odometer = 0;
     this.maxSpeed = 0;
     this.peakG = { lat: 0, long: 0, total: 0 };
@@ -137,14 +162,17 @@ export class TelemetryStore {
   ingest(packet: Uint8Array | ArrayBuffer, t: number, quiet = false) {
     const f = parsePacket(packet);
     if (!f) return;
-    this.frame = f;
     this.time = t;
     this.version++;
     this.lastIngestAt = performance.now();
+    this.raceOn = f.isRaceOn;
     if (!f.isRaceOn) {
+      // Menu/pause packets are all zeros; keep showing the last driving frame.
+      if (!this.frame) this.frame = f;
       if (!quiet) this.emit();
       return;
     }
+    this.frame = f;
     this.everRaceOn = true;
 
     // Light EMA: raw accelerations spike on impacts/landings, which would dominate peaks.
@@ -208,6 +236,7 @@ export class TelemetryStore {
     if (tot > this.peakG.total) this.peakG.total = tot;
 
     this.laps.push(f);
+    this.race.push(f);
     if (!quiet) this.emit();
   }
 }

@@ -4,7 +4,8 @@ import { decodeFhs, encodeHeader, encodeRecord } from '../shared/fhs';
 import { parsePacket, type Frame } from '../shared/packet';
 import type { SessionMeta } from '../shared/ipc';
 
-const IDLE_CLOSE_MS = 5000;
+// long enough to survive rewind menus and short pauses
+const IDLE_CLOSE_MS = 20000;
 
 /** Records race-on packets into .fhs files, one file per continuous drive. */
 export class Recorder {
@@ -13,6 +14,7 @@ export class Recorder {
   private lastRaceOn = 0;
   private meta: SessionMeta | null = null;
   private lastPos: [number, number, number] | null = null;
+  private lastRaceTime = 0;
 
   constructor(private dir: string) {
     mkdirSync(dir, { recursive: true });
@@ -33,6 +35,9 @@ export class Recorder {
       this.tick(now);
       return;
     }
+    // race clock restarted → a new event gets its own file
+    if (this.fd !== null && f.currentRaceTime < 1.5 && this.lastRaceTime > 3) this.close();
+    this.lastRaceTime = f.currentRaceTime;
     if (this.fd === null) this.open(now);
     this.lastRaceOn = now;
     writeSync(this.fd!, encodeRecord(now - this.start, packet));

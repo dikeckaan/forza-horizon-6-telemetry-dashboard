@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useFrame, useUnits } from '../hooks';
 import { store } from '../store';
 import { fmtDelta, fmtLap, speedLabel, speedOf } from '../../shared/units';
@@ -26,12 +26,14 @@ export function LapsPage() {
   const effKey = effSel.join(',');
   const selected = useMemo(() => effSel.map((n) => laps.find((l) => l.number === n)).filter(Boolean) as Lap[], [effKey, laps, lapsVersion]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (store.race.event?.kind === 'sprint') return <SprintView />;
+
   if (!laps.length && (!cur || f.lapNumber === 0) && f.currentLap === 0) {
     return (
       <div className="panel empty" style={{ minHeight: 400 }}>
         <div>
           <h3>Henüz tur yok</h3>
-          Turlar yarışlarda ve tur bazlı etkinliklerde otomatik olarak ayrılır.
+          Pist yarışlarında turlar, sprint yarışlarında ilerleme ve en iyi koşu karşılaştırması burada görünür.
           <br />
           Serbest sürüşte oyun tur/mesafe verisi göndermez — sürüşünü <b>Harita</b> ve <b>Grafikler</b> ekranlarında izleyebilirsin.
         </div>
@@ -113,14 +115,16 @@ export function LapsPage() {
   );
 }
 
-function Comparison({ laps }: { laps: Lap[] }) {
+function Comparison({ laps, names }: { laps: Lap[]; names?: string[] }) {
   const u = useUnits();
   const data = useMemo(() => {
     const ref = laps[0];
+    // overlap of all runs (a run may have been joined mid-way)
+    const minD = Math.max(...laps.map((l) => l.samples[0]?.d ?? 0));
     const maxD = Math.min(...laps.map((l) => l.samples.at(-1)?.d ?? 0));
     const step = 5;
     const x: number[] = [];
-    for (let d = 0; d <= maxD; d += step) x.push(d);
+    for (let d = minD; d <= maxD; d += step) x.push(d);
     const at = (l: Lap, key: 'speed' | 'accel' | 'brake' | 'gear') => {
       let j = 0;
       return x.map((d) => {
@@ -147,7 +151,7 @@ function Comparison({ laps }: { laps: Lap[] }) {
     return { x, series, delta };
   }, [laps, u]);
 
-  const name = (l: Lap) => `Tur ${l.number + 1}`;
+  const name = (l: Lap) => names?.[laps.indexOf(l)] ?? `Tur ${l.number + 1}`;
   return (
     <div className="grid">
       <StaticChart title="Hız" unit={speedLabel(u)} x={data.x} series={data.series.map((s) => ({ label: name(s.l), color: s.color, data: s.speed }))} height={200} />
@@ -182,6 +186,76 @@ function Big({ label, value, color }: { label: string; value: string; color?: st
       <span className="mono" style={{ fontSize: 30, color, marginTop: 4 }}>
         {value}
       </span>
+    </div>
+  );
+}
+
+/** Point-to-point race: progress, live delta and a comparison against the best run on this route. */
+function SprintView() {
+  const f = useFrame();
+  const u = useUnits();
+  const ev = store.race.event!;
+  const route = store.race.route;
+  const progress = store.race.progress();
+  const delta = store.race.delta();
+  // refresh the (heavier) comparison charts once per second
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const runs = useMemo(() => {
+    const current: Lap = { number: -1, time: ev.time, samples: [...ev.samples], maxSpeed: 0, carOrdinal: f.carOrdinal, startDist: 0 };
+    const best: Lap | null = route?.bestSamples.length ? { number: -2, time: route.bestTime, samples: route.bestSamples, maxSpeed: 0, carOrdinal: 0, startDist: 0 } : null;
+    return best ? [best, current] : [current];
+  }, [tick, route]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="grid">
+      <div className="grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
+        <Big label="Pozisyon" value={f.racePosition ? `P${f.racePosition}` : '—'} />
+        <Big label="Yarış süresi" value={fmtLap(f.currentRaceTime)} />
+        <Big label="İlerleme" value={progress !== null ? `${(progress * 100).toFixed(1)}%` : ev.routeKey ? 'öğreniliyor' : '—'} />
+        <Big label="En iyi koşuya göre" value={isNaN(delta) ? '—' : fmtDelta(delta)} color={isNaN(delta) ? undefined : delta <= 0 ? 'var(--good)' : 'var(--bad)'} />
+        <Big label="En iyi koşu" value={route?.bestTime ? fmtLap(route.bestTime) : '—'} color="#b36bff" />
+      </div>
+      <div className="grid" style={{ gridTemplateColumns: 'minmax(300px, 380px) 1fr' }}>
+        <div className="panel">
+          <div className="panel-title" style={{ marginBottom: 10 }}>
+            Bu yarış
+          </div>
+          {[
+            ['Mesafe', `${(f.distanceTraveled / 1000).toFixed(2)} km`],
+            ['Rota uzunluğu', route ? `${(route.distance / 1000).toFixed(2)} km` : ev.routeKey ? 'ilk koşu — bitirince öğrenilir' : 'tanınamadı'],
+            ['Bu rotada koşu', route ? String(route.runs) : '0'],
+            ['En iyi pozisyon', ev.bestPosition < 99 ? `P${ev.bestPosition}` : '—'],
+            ['Geri sarma', String(ev.rewinds)],
+            ['Ort. hız', ev.time > 0 ? `${Math.round(speedOf(f.distanceTraveled / ev.time, u))} ${speedLabel(u)}` : '—'],
+          ].map(([k, v]) => (
+            <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderTop: '1px solid var(--line)' }}>
+              <span className="muted">{k}</span>
+              <span className="mono">{v}</span>
+            </div>
+          ))}
+          {!ev.routeKey && (
+            <p className="muted" style={{ fontSize: 11.5, lineHeight: 1.5, marginBottom: 0 }}>
+              Uygulama yarışın başını görmediği için bu rota tanınamadı. Sonraki yarışlar baştan itibaren takip edilir.
+            </p>
+          )}
+        </div>
+        <div className="panel" style={{ padding: 0, overflow: 'hidden', minHeight: 300 }}>
+          <div style={{ position: 'absolute', top: 12, left: 14, zIndex: 1 }} className="panel-title">
+            {runs.length > 1 ? 'Çizgi · en iyi koşu vs şimdi' : 'Çizgi'}
+          </div>
+          <TrackCanvas
+            key={runs.length}
+            colorBy="plain"
+            showTrail={false}
+            overlays={runs.map((l, i) => ({ points: l.samples, color: runs.length > 1 && i === 0 ? A : B, width: 3 }))}
+          />
+        </div>
+      </div>
+      {runs[runs.length - 1].samples.length > 2 && <Comparison laps={runs} names={runs.length > 1 ? ['En iyi koşu', 'Şimdi'] : ['Şimdi']} />}
     </div>
   );
 }

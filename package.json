@@ -35,7 +35,11 @@
           ]
         }
       ],
-      "category": "public.app-category.utilities"
+      "category": "public.app-category.utilities",
+      "extendInfo": {
+        "NSLocalNetworkUsageDescription": "FH Telemetry, Forza Horizon’ın yerel ağdan gönderdiği telemetri verisini alır."
+      },
+      "identity": null
     },
     "win": {
       "target": "nsis"
@@ -43,20 +47,15 @@
     "linux": {
       "target": "AppImage",
       "category": "Utility"
-    }
+    },
+    "icon": "build/icon.png"
   },
-  "dependencies": {
+  "devDependencies": {
     "@fontsource-variable/inter": "^5.3.0",
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "@fontsource/rajdhani": "^5.3.0",
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.1",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
-    "three": "^0.186.1",
-    "uplot": "^1.6.32"
-  },
-  "devDependencies": {
     "@types/node": "^26.6.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
@@ -65,7 +64,11 @@
     "electron": "^44.4.5",
     "electron-builder": "^26.15.3",
     "esbuild": "^0.28.2",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "three": "^0.186.1",
     "typescript": "^7.0.2",
+    "uplot": "^1.6.32",
     "vite": "^8.3.1",
     "vitest": "^5.0.2"
   },

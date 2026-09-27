@@ -11,7 +11,11 @@ export function CockpitPage() {
   const boostMax = u.pressure === 'psi' ? 30 : 2;
   const boostMin = u.pressure === 'psi' ? -15 : -1;
   const boost = pressureOf(f.boost, u);
-  const hasLaps = f.lapNumber > 0 || f.currentLap > 0 || f.bestLap > 0;
+  const ev = store.race.event;
+  const hasLaps = ev?.kind === 'circuit' || f.lapNumber > 0 || f.bestLap > 0;
+  const route = store.race.route;
+  const progress = store.race.progress();
+  const raceDelta = store.race.delta();
 
   return (
     <div className="grid" style={{ gridTemplateColumns: 'minmax(250px, 300px) minmax(420px, 1fr) minmax(250px, 300px)', alignItems: 'start' }}>
@@ -94,8 +98,17 @@ export function CockpitPage() {
 
       {/* bottom strip */}
       <div className="panel" style={{ gridColumn: '1 / -1' }}>
+        {ev?.kind === 'sprint' && <RaceProgress progress={progress} known={!!ev.routeKey} />}
         <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(112px, 1fr))', gap: 16 }}>
-          {hasLaps ? (
+          {ev?.kind === 'sprint' ? (
+            <>
+              <Stat label="Pozisyon" value={f.racePosition ? `P${f.racePosition}` : '—'} sub={ev.bestPosition < 99 ? `en iyi P${ev.bestPosition}` : undefined} />
+              <Stat label="Yarış süresi" value={fmtLap(f.currentRaceTime)} mono />
+              <Stat label="Yarış mesafesi" value={(f.distanceTraveled / 1000).toFixed(2)} unit="km" sub={route ? `rota ${(route.distance / 1000).toFixed(2)} km` : undefined} />
+              <Stat label="En iyi koşuya göre" value={isNaN(raceDelta) ? '—' : fmtDelta(raceDelta)} mono color={isNaN(raceDelta) ? undefined : raceDelta <= 0 ? 'var(--good)' : 'var(--bad)'} sub={route?.bestTime ? `en iyi ${fmtLap(route.bestTime)}` : undefined} />
+              <Stat label="Geri sarma" value={String(ev.rewinds)} />
+            </>
+          ) : hasLaps ? (
             <>
               <Stat label="Tur" value={`${f.lapNumber + 1}`} sub={f.racePosition ? `Sıra P${f.racePosition}` : undefined} />
               <Stat label="Mevcut tur" value={fmtLap(f.currentLap)} mono />
@@ -107,7 +120,7 @@ export function CockpitPage() {
           ) : (
             <Stat label="Sürüş süresi" value={fmtLap(f.currentRaceTime)} mono />
           )}
-          <Stat label="Mesafe" value={(store.odometer / 1000).toFixed(2)} unit="km" />
+          <Stat label="Oturum mesafesi" value={(store.odometer / 1000).toFixed(2)} unit="km" />
           <Stat label="Maks hız" value={Math.round(speedOf(store.maxSpeed, u)).toString()} unit={speedLabel(u)} />
           <Stat label="Tepe G" value={`${store.peakG.lat.toFixed(2)} / ${store.peakG.long.toFixed(2)}`} sub="yanal / boyuna" />
           <Stat label="İrtifa" value={Math.round(f.positionY).toString()} unit="m" />
@@ -126,6 +139,31 @@ function Stat({ label, value, unit, sub, mono, color }: { label: string; value: 
         {unit && <small>{unit}</small>}
       </span>
       {sub && <span className="sub">{sub}</span>}
+    </div>
+  );
+}
+
+function RaceProgress({ progress, known }: { progress: number | null; known: boolean }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+      <span className="label" style={{ minWidth: 64 }}>
+        İlerleme
+      </span>
+      <div style={{ flex: 1, height: 8, borderRadius: 8, background: '#141821', overflow: 'hidden' }}>
+        {progress !== null ? (
+          <div style={{ width: `${progress * 100}%`, height: '100%', borderRadius: 8, background: 'linear-gradient(90deg, #2de2e6, #ff2e88, #ff7a2e)', boxShadow: '0 0 12px rgba(255,46,136,.5)' }} />
+        ) : (
+          <div style={{ width: '100%', height: '100%', background: 'repeating-linear-gradient(45deg, #1c2130 0 8px, #141821 8px 16px)' }} />
+        )}
+      </div>
+      <span className="num" style={{ fontSize: 22, minWidth: 64, textAlign: 'right' }}>
+        {progress !== null ? `${Math.floor(progress * 100)}%` : '—'}
+      </span>
+      {progress === null && (
+        <span className="muted" style={{ fontSize: 11.5 }}>
+          {known ? 'ilk koşu: rota uzunluğu öğreniliyor' : 'yarışın başı görülmedi — rota tanınamadı'}
+        </span>
+      )}
     </div>
   );
 }

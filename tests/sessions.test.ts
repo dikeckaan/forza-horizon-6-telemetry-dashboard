@@ -38,7 +38,7 @@ describe('Recorder', () => {
       rec.push(r.packet, parsePacket(r.packet)!, now);
     }
     expect(rec.active).toBe(true);
-    rec.tick(now + 6000);
+    rec.tick(now + 21000);
     expect(rec.active).toBe(false);
     const list = listSessions(dir);
     expect(list).toHaveLength(1);
