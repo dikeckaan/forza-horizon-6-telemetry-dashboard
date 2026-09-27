@@ -1,4 +1,7 @@
-import { useFrame, useUnits } from '../hooks';
+import { useFrame, useSettings, useUnits } from '../hooks';
+import { Spark } from '../components/Spark';
+import { carName } from '../../shared/cars';
+import { carClassName, CLASS_COLORS, drivetrainName } from '../../shared/units';
 import { store } from '../store';
 import { GCircle, HMeter, Pedals, ShiftLights, SteeringWheel, Tachometer } from '../components/Gauges';
 import { TrackCanvas } from '../components/TrackCanvas';
@@ -16,9 +19,46 @@ export function CockpitPage() {
   const route = store.race.route;
   const progress = store.race.progress();
   const raceDelta = store.race.delta();
+  const { settings } = useSettings();
+  const name = carName(f.carOrdinal, settings.carNames);
+  const k = Math.min(1, f.currentEngineRpm / (f.engineMaxRpm || 8000));
+  const glow = k < 0.6 ? '45,226,230' : k < 0.8 ? '255,46,136' : k < 0.9 ? '255,122,46' : '255,59,78';
+  const cls = carClassName(f.carClass);
 
   return (
-    <div className="grid" style={{ gridTemplateColumns: 'minmax(250px, 300px) minmax(420px, 1fr) minmax(250px, 300px)', alignItems: 'start' }}>
+    <div className="grid" style={{ gridTemplateColumns: 'minmax(250px, 300px) minmax(420px, 1fr) minmax(250px, 300px)', alignItems: 'start', position: 'relative' }}>
+      {/* ambient light that heats up with the revs */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: '-18px',
+          pointerEvents: 'none',
+          background: `radial-gradient(700px 420px at 50% 42%, rgba(${glow},${0.05 + k * 0.13}), transparent 70%)`,
+          transition: 'background .25s',
+        }}
+      />
+      {/* hero */}
+      <div className="panel" style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 18, padding: '14px 20px', overflow: 'hidden', background: 'linear-gradient(100deg, rgba(255,46,136,.10), rgba(18,21,29,.72) 38%, rgba(18,21,29,.72) 70%, rgba(45,226,230,.08))' }}>
+        <div style={{ display: 'flex', alignItems: 'stretch', height: 46, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--line-2)', fontFamily: 'var(--font-num)', fontWeight: 700 }}>
+          <span style={{ display: 'grid', placeItems: 'center', padding: '0 14px', fontSize: 26, color: '#0b0d12', background: CLASS_COLORS[cls] ?? '#888' }}>{cls}</span>
+          <span style={{ display: 'grid', placeItems: 'center', padding: '0 14px', fontSize: 24, background: '#0b0d12' }}>{f.carPerformanceIndex || '—'}</span>
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div className="label" style={{ letterSpacing: '.22em' }}>{name ? name.match(/^\d{4}/)?.[0] ?? 'ARAÇ' : 'ARAÇ'}</div>
+          {/* car names are English: uppercase them with English rules (no dotted İ) */}
+          <div lang="en" className="num" style={{ fontSize: 32, fontWeight: 700, fontStyle: 'italic', textTransform: 'uppercase', lineHeight: 1.05, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {name ? name.replace(/^\d{4}\s+/, '').replace(/\s*\(.*\)$/, '') : f.carOrdinal ? `Araç #${f.carOrdinal}` : 'Araç bekleniyor'}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginLeft: 'auto', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <Chip>{drivetrainName(f.drivetrainType)}</Chip>
+          {f.numCylinders > 0 && <Chip>{f.numCylinders} silindir</Chip>}
+          <Chip>
+            {Math.round(powerOf(store.maxPower, u))} {powerLabel(u)} tepe
+          </Chip>
+          <Chip accent={ev?.kind === 'sprint' || ev?.kind === 'circuit'}>{ev?.kind === 'sprint' ? `Sprint · P${f.racePosition || '—'}` : ev?.kind === 'circuit' ? `Pist · P${f.racePosition || '—'}` : 'Serbest sürüş'}</Chip>
+        </div>
+      </div>
       {/* left column */}
       <div className="grid">
         <div className="panel">
@@ -37,7 +77,7 @@ export function CockpitPage() {
 
       {/* center */}
       <div className="grid">
-        <div className="panel" style={{ padding: '16px 18px 10px' }}>
+        <div className="panel" style={{ padding: '16px 18px 10px', boxShadow: `0 0 ${20 + k * 50}px rgba(${glow},${0.08 + k * 0.22}) inset, 0 0 ${k * 40}px rgba(${glow},${k * 0.18})`, borderColor: `rgba(${glow},${0.12 + k * 0.3})`, transition: 'box-shadow .15s, border-color .15s' }}>
           <ShiftLights f={f} />
           <Tachometer f={f} units={u} />
         </div>
@@ -49,6 +89,7 @@ export function CockpitPage() {
               <small>{powerLabel(u)}</small>
             </span>
             <span className="sub">maks {Math.round(powerOf(store.maxPower, u))}</span>
+            <Spark channel="power" color="#c47f1c" map={(v) => powerOf(v, u)} min={0} />
           </div>
           <div className="panel stat">
             <span className="label">Tork</span>
@@ -57,6 +98,7 @@ export function CockpitPage() {
               <small>{torqueLabel(u)}</small>
             </span>
             <span className="sub">maks {Math.round(torqueOf(store.maxTorque, u))}</span>
+            <Spark channel="torque" color="#8a72f0" map={(v) => torqueOf(v, u)} min={0} />
           </div>
           <div className="panel stat">
             <span className="label">Turbo</span>
@@ -65,6 +107,7 @@ export function CockpitPage() {
               <small>{pressureLabel(u)}</small>
             </span>
             <HMeter value={boost} min={boostMin} max={boostMax} color={boost >= 0 ? '#2de2e6' : '#6b7285'} />
+            <Spark channel="boost" color="#2de2e6" map={(v) => pressureOf(v, u)} height={26} />
           </div>
           <div className="panel stat">
             <span className="label">Yakıt</span>
@@ -73,6 +116,8 @@ export function CockpitPage() {
               <small>%</small>
             </span>
             <HMeter value={f.fuel * 100} min={0} max={100} color={f.fuel < 0.15 ? '#ff4d5e' : '#ffc53d'} />
+            <Spark channel="speed" color="#f03a7e" map={(v) => speedOf(v, u)} min={0} height={26} />
+            <span className="sub">hız · son 12 sn</span>
           </div>
         </div>
       </div>
@@ -165,5 +210,27 @@ function RaceProgress({ progress, known }: { progress: number | null; known: boo
         </span>
       )}
     </div>
+  );
+}
+
+function Chip({ children, accent }: { children: React.ReactNode; accent?: boolean }) {
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        height: 30,
+        padding: '0 12px',
+        borderRadius: 999,
+        fontSize: 12.5,
+        fontWeight: 600,
+        letterSpacing: '.04em',
+        background: accent ? 'linear-gradient(135deg, rgba(255,46,136,.25), rgba(255,122,46,.2))' : 'rgba(0,0,0,.35)',
+        border: `1px solid ${accent ? 'rgba(255,46,136,.5)' : 'var(--line-2)'}`,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {children}
+    </span>
   );
 }

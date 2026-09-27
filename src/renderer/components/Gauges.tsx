@@ -21,83 +21,145 @@ export function redlineOf(f: Frame) {
   return (f.engineMaxRpm || 8000) * 0.9;
 }
 
-export function Tachometer({ f, units, size = 440 }: { f: Frame; units: UnitPrefs; size?: number }) {
-  const id = useId();
+export function Tachometer({ f, units, size = 460 }: { f: Frame; units: UnitPrefs; size?: number }) {
+  const id = useId().replace(/:/g, '');
   const max = Math.max(1000, Math.ceil((f.engineMaxRpm || 8000) / 1000) * 1000);
   const rpm = Math.min(f.currentEngineRpm, max);
   const redline = redlineOf(f);
   const c = size / 2;
-  const R = c - 18;
+  const R = c - 26;
   const ang = (v: number) => START + (v / max) * SWEEP;
   const progress = ang(rpm);
+  const k = rpm / max;
+  const shift = f.currentEngineRpm > 0 && rpm >= redline;
+  const blink = shift && Math.floor(performance.now() / 110) % 2 === 0;
+  // arc colour walks cyan → pink → orange → red as revs climb
+  const glow = k < 0.6 ? '#2de2e6' : k < 0.8 ? '#ff2e88' : k < 0.9 ? '#ff7a2e' : '#ff3b4e';
+
   const ticks = [];
   for (let v = 0; v <= max; v += 250) {
     const major = v % 1000 === 0;
+    const half = v % 500 === 0;
     const a = ang(v);
-    const [x1, y1] = polar(c, c, R - 2, a);
-    const [x2, y2] = polar(c, c, R - (major ? 20 : 10), a);
+    const [x1, y1] = polar(c, c, R - 6, a);
+    const [x2, y2] = polar(c, c, R - (major ? 30 : half ? 20 : 14), a);
     const hot = v >= redline;
+    const lit = v <= rpm;
     ticks.push(
-      <line key={v} x1={x1} y1={y1} x2={x2} y2={y2} stroke={hot ? '#ff4d5e' : major ? '#d6dbe6' : '#4a5063'} strokeWidth={major ? 2.4 : 1.3} strokeLinecap="round" />,
+      <line
+        key={v}
+        x1={x1}
+        y1={y1}
+        x2={x2}
+        y2={y2}
+        stroke={hot ? '#ff3b4e' : lit ? '#ffffff' : major ? '#9aa2b4' : '#3a4050'}
+        strokeWidth={major ? 3 : half ? 2 : 1.3}
+        strokeLinecap="round"
+        style={lit && major ? { filter: `drop-shadow(0 0 4px ${glow})` } : undefined}
+      />,
     );
     if (major) {
-      const [tx, ty] = polar(c, c, R - 40, a);
+      const [tx, ty] = polar(c, c, R - 52, a);
       ticks.push(
-        <text key={'t' + v} x={tx} y={ty + 6} textAnchor="middle" className="num" fontSize={18} fill={hot ? '#ff4d5e' : '#aab1c2'}>
+        <text key={'t' + v} x={tx} y={ty + 7} textAnchor="middle" className="num" fontSize={22} fontWeight={700} fontStyle="italic" fill={hot ? '#ff3b4e' : lit ? '#fff' : '#7d8599'}>
           {v / 1000}
         </text>,
       );
     }
   }
-  const [nx, ny] = polar(c, c, R - 26, progress);
-  const [nbx, nby] = polar(c, c, R - 92, progress);
-  const shift = rpm >= redline;
+  // tapered needle
+  const [tip] = [polar(c, c, R - 18, progress)];
+  const [b1, b2] = [polar(c, c, 14, progress - 90), polar(c, c, 14, progress + 90)];
+  const [tail] = [polar(c, c, 34, progress + 180)];
   const gear = gearLabel(f.gear);
   const spd = speedOf(f.speed, units);
 
   return (
     <svg width="100%" viewBox={`0 0 ${size} ${size}`} style={{ maxWidth: size, display: 'block', margin: '0 auto', overflow: 'visible' }}>
       <defs>
-        <linearGradient id={id + 'g'} x1="0" y1="1" x2="1" y2="0">
+        <linearGradient id={id + 'arc'} x1="0" y1="1" x2="1" y2="0">
           <stop offset="0" stopColor="#2de2e6" />
-          <stop offset="0.6" stopColor="#ff2e88" />
-          <stop offset="1" stopColor="#ff7a2e" />
+          <stop offset="0.55" stopColor="#ff2e88" />
+          <stop offset="0.85" stopColor="#ff7a2e" />
+          <stop offset="1" stopColor="#ff3b4e" />
         </linearGradient>
-        <radialGradient id={id + 'bg'}>
-          <stop offset="0" stopColor="#151925" />
-          <stop offset="1" stopColor="#0a0c11" />
+        <linearGradient id={id + 'bezel'} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#5b6172" />
+          <stop offset="0.35" stopColor="#1a1d26" />
+          <stop offset="0.65" stopColor="#2a2e3a" />
+          <stop offset="1" stopColor="#0c0e13" />
+        </linearGradient>
+        <radialGradient id={id + 'face'} cx="50%" cy="42%">
+          <stop offset="0" stopColor="#1b1f2b" />
+          <stop offset="0.7" stopColor="#0d1017" />
+          <stop offset="1" stopColor="#07080c" />
         </radialGradient>
+        <radialGradient id={id + 'hot'} cx="50%" cy="50%">
+          <stop offset="0.55" stopColor={glow} stopOpacity={0} />
+          <stop offset="1" stopColor={glow} stopOpacity={0.22 + k * 0.25} />
+        </radialGradient>
+        {/* carbon weave */}
+        <pattern id={id + 'carbon'} width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <rect width="8" height="8" fill="#0d1016" />
+          <rect width="4" height="4" fill="#141821" />
+          <rect x="4" y="4" width="4" height="4" fill="#141821" />
+        </pattern>
         <filter id={id + 'glow'} x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="6" />
+          <feGaussianBlur stdDeviation="7" />
+        </filter>
+        <filter id={id + 'soft'} x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="2.2" />
         </filter>
       </defs>
-      <circle cx={c} cy={c} r={R + 8} fill={`url(#${id}bg)`} stroke="rgba(255,255,255,0.06)" />
-      <path d={arcPath(c, c, R + 1, START, START + SWEEP)} stroke="#1c202b" strokeWidth={10} fill="none" strokeLinecap="round" />
-      <path d={arcPath(c, c, R + 1, ang(redline), START + SWEEP)} stroke="rgba(255,77,94,0.35)" strokeWidth={10} fill="none" />
+
+      {/* bezel + face */}
+      <circle cx={c} cy={c} r={c - 4} fill={`url(#${id}bezel)`} />
+      <circle cx={c} cy={c} r={c - 12} fill={`url(#${id}carbon)`} />
+      <circle cx={c} cy={c} r={c - 12} fill={`url(#${id}face)`} opacity={0.82} />
+      <circle cx={c} cy={c} r={c - 12} fill={`url(#${id}hot)`} />
+      <circle cx={c} cy={c} r={c - 12} fill="none" stroke="rgba(255,255,255,0.08)" />
+
+      {/* track, redline band, live arc */}
+      <path d={arcPath(c, c, R, START, START + SWEEP)} stroke="#181b24" strokeWidth={12} fill="none" strokeLinecap="round" />
+      <path d={arcPath(c, c, R, ang(redline), START + SWEEP)} stroke="rgba(255,59,78,0.45)" strokeWidth={12} fill="none" />
       {rpm > 1 && (
         <>
-          <path d={arcPath(c, c, R + 1, START, Math.max(START + 0.5, progress))} stroke={`url(#${id}g)`} strokeWidth={10} fill="none" strokeLinecap="round" filter={`url(#${id}glow)`} opacity={0.7} />
-          <path d={arcPath(c, c, R + 1, START, Math.max(START + 0.5, progress))} stroke={`url(#${id}g)`} strokeWidth={10} fill="none" strokeLinecap="round" />
+          <path d={arcPath(c, c, R, START, Math.max(START + 0.5, progress))} stroke={`url(#${id}arc)`} strokeWidth={14} fill="none" strokeLinecap="round" filter={`url(#${id}glow)`} opacity={0.55 + k * 0.4} />
+          <path d={arcPath(c, c, R, START, Math.max(START + 0.5, progress))} stroke={`url(#${id}arc)`} strokeWidth={12} fill="none" strokeLinecap="round" />
         </>
       )}
       {ticks}
-      <line x1={nbx} y1={nby} x2={nx} y2={ny} stroke={shift ? '#ff4d5e' : '#fff'} strokeWidth={4} strokeLinecap="round" style={{ filter: 'drop-shadow(0 0 6px rgba(255,46,136,.8))' }} />
-      
-      <text x={c} y={c - 58} textAnchor="middle" className="label" fill="#6b7285" fontSize={11} letterSpacing="0.2em">
+
+      {/* needle */}
+      <polygon points={`${tip[0]},${tip[1]} ${b1[0]},${b1[1]} ${tail[0]},${tail[1]} ${b2[0]},${b2[1]}`} fill={glow} filter={`url(#${id}soft)`} opacity={0.9} />
+      <polygon points={`${tip[0]},${tip[1]} ${b1[0]},${b1[1]} ${tail[0]},${tail[1]} ${b2[0]},${b2[1]}`} fill="#fff" />
+      <circle cx={c} cy={c} r={18} fill="#0b0d12" stroke="#3a3f4d" strokeWidth={2} />
+      <circle cx={c} cy={c} r={6} fill={glow} />
+
+      {/* readouts */}
+      <text x={c} y={c - 70} textAnchor="middle" fill="#6b7285" fontSize={11} fontWeight={600} letterSpacing="0.24em">
         RPM × 1000
       </text>
-      <text x={c} y={c + 34} textAnchor="middle" className="num" fontWeight={700} fontSize={112} fill={shift ? '#ff4d5e' : '#fff'} style={{ transition: 'fill .1s' }}>
-        {gear}
-      </text>
-      <text x={c} y={c + 96} textAnchor="middle" className="num" fontWeight={600} fontSize={50} fill="#eef1f7">
+      <g transform={`translate(${c}, ${c + 70})`}>
+        <rect x={-46} y={-60} width={92} height={84} rx={16} fill="rgba(0,0,0,0.55)" stroke={shift ? '#ff3b4e' : 'rgba(255,255,255,0.12)'} strokeWidth={shift ? 2.5 : 1} style={shift ? { filter: 'drop-shadow(0 0 10px #ff3b4e)' } : undefined} />
+        <text y={10} textAnchor="middle" className="num" fontWeight={700} fontSize={78} fontStyle="italic" fill={shift ? '#ff3b4e' : '#fff'}>
+          {gear}
+        </text>
+      </g>
+      <text x={c} y={c + 140} textAnchor="middle" className="num" fontWeight={700} fontStyle="italic" fontSize={46} fill="#eef1f7">
         {Math.round(spd)}
+        <tspan fontSize={14} fill="#6b7285" dx={6} fontStyle="normal" letterSpacing="0.14em">
+          {speedLabel(units).toUpperCase()}
+        </tspan>
       </text>
-      <text x={c} y={c + 118} textAnchor="middle" fill="#6b7285" fontSize={12} fontWeight={600} letterSpacing="0.16em">
-        {speedLabel(units).toUpperCase()}
-      </text>
-      <text x={c} y={c + 156} textAnchor="middle" className="mono" fill="#aab1c2" fontSize={15}>
+      <text x={c} y={c + 166} textAnchor="middle" className="mono" fill="#8d95a8" fontSize={13}>
         {Math.round(f.currentEngineRpm).toLocaleString('tr-TR')} rpm
       </text>
+      {blink && (
+        <text x={c} y={c - 30} textAnchor="middle" className="num" fontWeight={700} fontSize={26} letterSpacing="0.3em" fill="#ff3b4e" style={{ filter: 'drop-shadow(0 0 8px #ff3b4e)' }}>
+          SHIFT
+        </text>
+      )}
     </svg>
   );
 }
@@ -134,26 +196,31 @@ export function ShiftLights({ f }: { f: Frame }) {
   );
 }
 
-export function VBar({ value, color, label, height = 170 }: { value: number; color: string; label: string; height?: number }) {
+/** Segmented LED column. */
+export function LedBar({ value, color, label, segments = 22, height = 190 }: { value: number; color: string; label: string; segments?: number; height?: number }) {
   const pct = Math.max(0, Math.min(100, value));
+  const lit = Math.round((pct / 100) * segments);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, flex: 1 }}>
-      <span className="num" style={{ fontSize: 18 }}>
+      <span className="num" style={{ fontSize: 20, fontStyle: 'italic', color: pct > 2 ? '#fff' : 'var(--ink-3)' }}>
         {Math.round(pct)}
       </span>
-      <div style={{ position: 'relative', width: '100%', maxWidth: 34, height, borderRadius: 10, background: '#141821', overflow: 'hidden', border: '1px solid var(--line)' }}>
-        <div
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height: `${pct}%`,
-            background: `linear-gradient(to top, ${color}88, ${color})`,
-            boxShadow: `0 0 18px ${color}66`,
-            borderRadius: 8,
-          }}
-        />
+      <div style={{ display: 'flex', flexDirection: 'column-reverse', gap: 3, height, width: '100%', maxWidth: 38, padding: 4, borderRadius: 10, background: '#0a0c11', border: '1px solid var(--line)' }}>
+        {Array.from({ length: segments }, (_, i) => {
+          const on = i < lit;
+          return (
+            <div
+              key={i}
+              style={{
+                flex: 1,
+                borderRadius: 3,
+                background: on ? color : '#171a22',
+                opacity: on ? 0.55 + (i / segments) * 0.45 : 1,
+                boxShadow: on ? `0 0 8px ${color}99` : 'none',
+              }}
+            />
+          );
+        })}
       </div>
       <span className="label">{label}</span>
     </div>
@@ -163,30 +230,41 @@ export function VBar({ value, color, label, height = 170 }: { value: number; col
 export function Pedals({ f }: { f: Frame }) {
   return (
     <div style={{ display: 'flex', gap: 10 }}>
-      <VBar value={f.clutch / 2.55} color="#4d8dff" label="Debr." />
-      <VBar value={f.brake / 2.55} color="#ff4d5e" label="Fren" />
-      <VBar value={f.accel / 2.55} color="#3bdc84" label="Gaz" />
-      <VBar value={f.handBrake / 2.55} color="#ffc53d" label="El F." />
+      <LedBar value={f.clutch / 2.55} color="#4d8dff" label="Debr." />
+      <LedBar value={f.brake / 2.55} color="#ff3b4e" label="Fren" />
+      <LedBar value={f.accel / 2.55} color="#3bdc84" label="Gaz" />
+      <LedBar value={f.handBrake / 2.55} color="#ffc53d" label="El F." />
     </div>
   );
 }
 
-export function SteeringWheel({ steer, size = 150 }: { steer: number; size?: number }) {
+export function SteeringWheel({ steer, size = 170 }: { steer: number; size?: number }) {
   const deg = (steer / 127) * 180;
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-      <svg width={size} height={size} viewBox="0 0 100 100" style={{ transform: `rotate(${deg}deg)` }}>
-        <circle cx="50" cy="50" r="42" fill="none" stroke="#2a2f3d" strokeWidth="9" />
-        <circle cx="50" cy="50" r="42" fill="none" stroke="url(#swg)" strokeWidth="9" strokeDasharray="30 234" strokeDashoffset="15" transform="rotate(-90 50 50)" />
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+      <svg width={size} height={size * 0.82} viewBox="0 0 120 98" style={{ overflow: 'visible' }}>
         <defs>
-          <linearGradient id="swg">
-            <stop offset="0" stopColor="#ff2e88" />
-            <stop offset="1" stopColor="#ff7a2e" />
+          <linearGradient id="swGrip" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#2b2f3a" />
+            <stop offset="1" stopColor="#12141a" />
           </linearGradient>
         </defs>
-        <path d="M8 52 Q50 62 92 52" stroke="#2a2f3d" strokeWidth="7" fill="none" />
-        <path d="M50 58 L50 92" stroke="#2a2f3d" strokeWidth="7" />
-        <circle cx="50" cy="55" r="11" fill="#1b1f2a" stroke="#353b4c" />
+        <g transform={`rotate(${deg} 60 50)`}>
+          {/* flat-bottom racing rim */}
+          <path d="M 18 66 A 44 44 0 1 1 102 66 L 88 84 L 32 84 Z" fill="none" stroke="url(#swGrip)" strokeWidth={11} strokeLinejoin="round" />
+          <path d="M 18 66 A 44 44 0 1 1 102 66 L 88 84 L 32 84 Z" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth={1} />
+          {/* 12 o'clock marker */}
+          <rect x={56} y={1} width={8} height={11} rx={2} fill="#ff2e88" style={{ filter: 'drop-shadow(0 0 4px #ff2e88)' }} />
+          {/* spokes + hub with shift lights */}
+          <path d="M 22 56 L 44 52 M 98 56 L 76 52 M 60 66 L 60 82" stroke="#1d2029" strokeWidth={9} strokeLinecap="round" />
+          <rect x={40} y={40} width={40} height={26} rx={8} fill="#0d0f14" stroke="#343a48" />
+          {[0, 1, 2, 3, 4].map((i) => (
+            <circle key={i} cx={46 + i * 7} cy={47} r={2.2} fill={Math.abs(steer) / 127 > i / 5 ? (i < 2 ? '#3bdc84' : i < 4 ? '#ffc53d' : '#ff3b4e') : '#262a35'} />
+          ))}
+          <text x={60} y={60} textAnchor="middle" fontSize={7} fill="#6b7285" fontWeight={700} letterSpacing="0.1em">
+            FH
+          </text>
+        </g>
       </svg>
       <div style={{ width: '100%', height: 6, borderRadius: 6, background: '#141821', position: 'relative' }}>
         <div
@@ -198,12 +276,13 @@ export function SteeringWheel({ steer, size = 150 }: { steer: number; size?: num
             width: `${Math.abs(steer / 127) * 50}%`,
             background: 'linear-gradient(90deg,#ff2e88,#ff7a2e)',
             borderRadius: 6,
+            boxShadow: '0 0 10px rgba(255,46,136,.5)',
           }}
         />
         <div style={{ position: 'absolute', left: '50%', top: -3, bottom: -3, width: 1, background: '#6b7285' }} />
       </div>
       <span className="mono muted" style={{ fontSize: 12 }}>
-        {steer > 0 ? 'R ' : steer < 0 ? 'L ' : ''}
+        {steer > 0 ? 'SAĞ ' : steer < 0 ? 'SOL ' : ''}
         {Math.round(Math.abs(steer / 127) * 100)}%
       </span>
     </div>

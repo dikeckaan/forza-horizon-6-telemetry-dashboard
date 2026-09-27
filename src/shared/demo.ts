@@ -182,7 +182,7 @@ export class DemoSim {
       tireSlipAngle: [slipBase * 0.5, slipBase * 0.5, slipBase * 0.35, slipBase * 0.35],
       tireCombinedSlip: [slipBase * 0.6 + brake * 0.3, slipBase * 0.6 + brake * 0.3, slipBase * 0.5 + accel * 0.2, slipBase * 0.5 + accel * 0.2],
       suspensionTravelMeters: suspN.map((n) => n * 0.12) as Wheels,
-      carOrdinal: 3453,
+      carOrdinal: 4081, // 2024 Koenigsegg Gemera
       carClass: 4,
       carPerformanceIndex: 842,
       drivetrainType: 2,
