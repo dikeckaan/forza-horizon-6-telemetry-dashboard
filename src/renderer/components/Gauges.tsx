@@ -32,7 +32,8 @@ export function Tachometer({ f, units, size = 460 }: { f: Frame; units: UnitPref
   const progress = ang(rpm);
   const k = rpm / max;
   const shift = f.currentEngineRpm > 0 && rpm >= redline;
-  const blink = shift && Math.floor(performance.now() / 110) % 2 === 0;
+  // blink only while driving; a paused game must not leave the dash flashing
+  const blink = shift && store.moving && Math.floor(performance.now() / 110) % 2 === 0;
   // arc colour walks cyan → pink → orange → red as revs climb
   const glow = k < 0.6 ? '#2de2e6' : k < 0.8 ? '#ff2e88' : k < 0.9 ? '#ff7a2e' : '#ff3b4e';
 
@@ -171,7 +172,7 @@ export function ShiftLights({ f }: { f: Frame }) {
   const hi = redlineOf(f);
   const k = Math.max(0, Math.min(1, (f.currentEngineRpm - lo) / (hi - lo)));
   const lit = Math.round(k * N);
-  const flash = f.currentEngineRpm > 0 && f.currentEngineRpm >= hi && Math.floor(performance.now() / 90) % 2 === 0;
+  const flash = store.moving && f.currentEngineRpm > 0 && f.currentEngineRpm >= hi && Math.floor(performance.now() / 90) % 2 === 0;
   return (
     <div style={{ display: 'flex', gap: 7, justifyContent: 'center', padding: '4px 0 2px' }}>
       {Array.from({ length: N }, (_, i) => {

@@ -56,7 +56,8 @@ export function loadModel(key: string, source: string | ArrayBuffer): Promise<TH
   return p;
 }
 
-const WHEEL_RE = /wheel|tire|tyre|rim|reifen|felge|rad\b/i;
+// 'rim' only as its own word: "Trim_Carbon" is a spoiler, not a wheel
+const WHEEL_RE = /wheel|tire|tyre|(^|[^a-z])rims?([^a-z]|$)|reifen|felge|rad\b/i;
 const NOT_WHEEL_RE = /steer|spare|interior|dash|cockpit|arch|well|fender|cover|house/i;
 const PAINT_RE = /body|paint|carpaint|color1|colour1|exterior|shell|panel/i;
 const NOT_PAINT_RE = /interior|underside|under|glass|window|rim|tire|tyre|wheel|light|lamp|grill|chrome|trim|rubber|seat|carbon|plate|gasket|black|color2|colour2/i;
@@ -146,6 +147,8 @@ function findWheelsByName(scene: THREE.Object3D, center: THREE.Vector3, carLengt
     const size = Math.max(s.x, s.y, s.z);
     // a group holding several wheels (or the whole car) is not a wheel
     if (size > Math.min(1.4, carLength * 0.3)) return;
+    // and it has to look like one: round side profile, narrower than tall
+    if (Math.abs(s.y - s.z) > size * 0.3 || s.x > size * 0.85) return;
     cands.push({ o, c: tmpBox.getCenter(new THREE.Vector3()), size });
   });
   if (!cands.length) return [null, null, null, null];

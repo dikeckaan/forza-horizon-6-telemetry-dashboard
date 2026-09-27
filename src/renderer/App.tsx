@@ -177,6 +177,16 @@ function WaitingOverlay({ onSettings }: { onSettings: () => void }) {
   if (replayActive) return null;
   const inMenu = !stale && !store.raceOn;
   if (!stale && !inMenu) return null;
+  if (inMenu && store.everRaceOn) {
+    // paused / in a menu mid-session: keep the frozen data visible, just say so
+    return (
+      <div style={{ position: 'absolute', top: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 6, pointerEvents: 'none' }}>
+        <span className="pill" style={{ background: 'rgba(7,8,11,.85)', borderColor: 'rgba(255,197,61,.4)' }}>
+          <span className="dot warn" /> Oyun duraklatıldı · veriler donduruldu
+        </span>
+      </div>
+    );
+  }
   const ip = status?.localAddresses[0] ?? '—';
   return (
     <div className="waiting">

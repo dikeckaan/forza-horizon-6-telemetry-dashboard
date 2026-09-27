@@ -50,7 +50,8 @@ function PoseTracker({ motion }: { motion: React.MutableRefObject<Motion> }) {
     if (!f) return;
     const m = motion.current;
     const d = Math.min(dt, 0.05);
-    const age = f.isRaceOn ? Math.min(0.05, (performance.now() - store.lastIngestAt) / 1000) : 0;
+    // extrapolate only while packets flow; while paused the last frame must stay perfectly still
+    const age = store.moving ? Math.min(0.05, (performance.now() - store.lastIngestAt) / 1000) : 0;
     const yaw = f.yaw + f.angularVelocityY * age;
     // local → world velocity (Forza: forward = (sin yaw, cos yaw), right = (cos yaw, −sin yaw))
     const vX = f.velocityZ * Math.sin(f.yaw) + f.velocityX * Math.cos(f.yaw);
@@ -197,7 +198,7 @@ function Car({ rig, xray, exaggerate }: { rig: CarRig; xray: boolean; exaggerate
       const w = rig.wheels[i];
       // cap the visual spin rate: past ~15 rad/s the rim strobes and seems to wobble or run backwards
       const rate = f.wheelRotationSpeed[i];
-      angles.current[i] += Math.sign(rate) * Math.min(Math.abs(rate), 15) * d;
+      if (store.moving) angles.current[i] += Math.sign(rate) * Math.min(Math.abs(rate), 15) * d;
       w.spin.rotation.x = angles.current[i];
       if (i < 2) w.steer.rotation.y = sm.steer;
       // wheels follow real travel (no exaggeration) so they stay in their arches
@@ -435,7 +436,7 @@ function Smoke({ rig, motion, tint }: { rig: CarRig; motion: React.MutableRefObj
     const d = Math.min(dt, 0.05);
     const m = motion.current;
     const P = parts.current;
-    if (f && f.isRaceOn) {
+    if (f && store.moving) {
       for (let w = 0; w < 4; w++) {
         const slip = Math.abs(f.tireCombinedSlip[w]);
         if (slip < 1.1 || f.speed < 3) continue;
@@ -517,7 +518,7 @@ function SkidMarks({ rig, motion, color, opacity }: { rig: CarRig; motion: React
       prev.current = [null, null, null, null];
     }
     for (let w = 0; w < 4; w++) {
-      const sliding = !!f && f.isRaceOn && f.speed > 2 && Math.abs(f.tireCombinedSlip[w]) >= 1.2;
+      const sliding = !!f && store.moving && f.speed > 2 && Math.abs(f.tireCombinedSlip[w]) >= 1.2;
       if (!sliding) {
         prev.current[w] = null;
         continue;

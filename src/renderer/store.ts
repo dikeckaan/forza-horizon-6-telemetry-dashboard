@@ -95,6 +95,14 @@ export class TelemetryStore {
   frame: Frame | null = null;
   /** whether the most recent packet was race-on */
   raceOn = false;
+
+  /**
+   * True only while fresh driving packets are arriving. False when the game is
+   * paused/in a menu (race-off packets keep coming) or a replay is paused.
+   */
+  get moving(): boolean {
+    return this.raceOn && performance.now() - this.lastIngestAt < 250;
+  }
   source: Source = 'live';
   /** increments on every ingested packet */
   version = 0;

@@ -61,6 +61,21 @@ function genericCar() {
 }
 
 describe('prepareRig', () => {
+  it('does not mistake a "Trim" part for a rim', () => {
+    const car = fakeCar(0);
+    const spoiler = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.05, 0.3), new THREE.MeshStandardMaterial({ name: 'CarPaint_Trim_Carbon' }));
+    spoiler.name = 'mSpoiler_Trim_Carbon';
+    spoiler.position.set(-0.1, 1.2, -2.05);
+    car.add(spoiler);
+    const rig = prepareRig(car, '#f00');
+    rig.root.updateMatrixWorld(true);
+    for (const w of rig.wheels) {
+      let spoilerInside = false;
+      w.spin.traverse((o) => (spoilerInside ||= o.name === 'mSpoiler_Trim_Carbon'));
+      expect(spoilerInside).toBe(false);
+    }
+  });
+
   it('finds wheels by shape and the front by its parts on generic exports', () => {
     const rig = prepareRig(genericCar(), 'original');
     rig.root.updateMatrixWorld(true);
