@@ -7,6 +7,12 @@ export interface Settings {
   demo: boolean;
   record: boolean;
   carNames: Record<string, string>;
+  /** body style chosen by the user, per car ordinal */
+  carStyles: Record<string, string>;
+  /** body style learned per game-reported car category (horizon block) */
+  categoryStyles: Record<string, string>;
+  /** paint chosen by the user, per car ordinal */
+  carPaints: Record<string, string>;
 }
 
 export interface Status {

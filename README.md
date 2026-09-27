@@ -16,7 +16,7 @@ Ayarlar › HUD ve Oynanış:
 | Kısayol | Ekran | İçerik |
 |---|---|---|
 | 1 | Kokpit | Devir saati, shift ışıkları, vites/hız, pedallar, direksiyon, G-çemberi, güç/tork/turbo/yakıt, mini harita, tur ya da sprint bilgisi |
-| 2 | Araç & Lastikler | Canlı 3D araç (süspansiyon, gövde hareketi, tekerlek dönüşü, kayma halkaları, hız vektörü) ve 4 lastik kartı |
+| 2 | Araç & Lastikler | Canlı 3D araç: 9 gövde tipi (otomatik tahmin, seçimin araç kategorisine öğretilir), boya seçimi, akan yol, drift açısı, lastik dumanı ve fren izleri, kızaran fren diskleri, egzoz alevi, takip/serbest/üst kamera, röntgen modu (yaylar, lastik sıcaklığı). Yanında 4 lastik kartı |
 | 3 | Harita | Hıza ya da gaz/frene göre renklenen sürüş izi, takip modu, yakınlaştırma |
 | 4 | Grafikler | Hız, devir, vites, pedallar, direksiyon, G, güç, turbo, lastik sıcaklığı, süspansiyon ve kayma için kayan grafikler |
 | 5 | Yarış & Turlar | Pist yarışında tur tablosu, canlı delta ve tur karşılaştırması. Sprint yarışında pozisyon, % ilerleme ve en iyi koşuya göre delta |
