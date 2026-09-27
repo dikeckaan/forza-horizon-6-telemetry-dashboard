@@ -56,3 +56,17 @@ describe('Recorder', () => {
     expect(listSessions(dir)).toHaveLength(0);
   });
 });
+
+describe('deleteAllSessions', () => {
+  it('removes every finished recording but keeps the active one', async () => {
+    const { deleteAllSessions } = await import('../src/main/sessions');
+    const { writeFileSync, readdirSync } = await import('node:fs');
+    const dir = mkdtempSync(join(tmpdir(), 'fhs-all-'));
+    for (const n of ['a.fhs', 'b.fhs', 'live.fhs']) {
+      writeFileSync(join(dir, n), 'x');
+      writeFileSync(join(dir, n + '.json'), '{}');
+    }
+    expect(deleteAllSessions(dir, 'live.fhs')).toBe(2);
+    expect(readdirSync(dir).sort()).toEqual(['live.fhs', 'live.fhs.json']);
+  });
+});

@@ -17,6 +17,7 @@ const bridge: FhBridge = {
   listSessions: () => ipcRenderer.invoke('sessions:list'),
   readSession: (name) => ipcRenderer.invoke('sessions:read', name),
   deleteSession: (name) => ipcRenderer.invoke('sessions:delete', name),
+  deleteAllSessions: () => ipcRenderer.invoke('sessions:deleteAll'),
   exportCsv: (name) => ipcRenderer.invoke('sessions:csv', name),
   revealSessions: () => ipcRenderer.invoke('sessions:reveal'),
   importModel: () => ipcRenderer.invoke('models:import'),

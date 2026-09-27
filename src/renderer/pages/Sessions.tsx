@@ -11,6 +11,7 @@ export function SessionsPage({ onOpen }: { onOpen: () => void }) {
   const [confirm, setConfirm] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [confirmAll, setConfirmAll] = useState(false);
   const u = useUnits();
   const { settings } = useSettings();
   const status = useStatus();
@@ -67,6 +68,29 @@ export function SessionsPage({ onOpen }: { onOpen: () => void }) {
           </div>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          {confirmAll ? (
+            <>
+              <span style={{ alignSelf: 'center', color: 'var(--bad)' }}>{list?.length ?? 0} kayıt kalıcı olarak silinsin mi?</span>
+              <button
+                className="btn danger"
+                onClick={async () => {
+                  const n = await window.fh!.deleteAllSessions();
+                  setConfirmAll(false);
+                  setMsg(`${n} kayıt silindi.`);
+                  refresh();
+                }}
+              >
+                Evet, hepsini sil
+              </button>
+              <button className="btn ghost" onClick={() => setConfirmAll(false)}>
+                Vazgeç
+              </button>
+            </>
+          ) : (
+            <button className="btn ghost danger" disabled={!list?.length} onClick={() => setConfirmAll(true)}>
+              <IconTrash width={15} height={15} /> Tümünü sil
+            </button>
+          )}
           <button className="btn" onClick={refresh}>
             Yenile
           </button>

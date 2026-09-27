@@ -139,6 +139,17 @@ export function deleteSession(dir: string, name: string) {
   }
 }
 
+/** Deletes every recording except the one being written right now. Returns how many were removed. */
+export function deleteAllSessions(dir: string, keep: string | null): number {
+  let n = 0;
+  for (const f of readdirSync(dir)) {
+    if (!f.endsWith('.fhs') || f === keep) continue;
+    deleteSession(dir, f);
+    n++;
+  }
+  return n;
+}
+
 const CSV_SKIP = new Set(['format', 'size']);
 
 export function sessionToCsv(data: Uint8Array): string {

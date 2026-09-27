@@ -10,7 +10,7 @@ import { parsePacket } from '../shared/packet';
 import { DemoSim } from '../shared/demo';
 import type { Settings, Status } from '../shared/ipc';
 import { loadSettings, saveSettings } from './settings';
-import { Recorder, deleteSession, listSessions, sessionToCsv } from './sessions';
+import { Recorder, deleteAllSessions, deleteSession, listSessions, sessionToCsv } from './sessions';
 import { checkToken, downloadModel, searchModels } from './sketchfab';
 import type { SketchfabModel } from '../shared/ipc';
 
@@ -195,6 +195,7 @@ function registerIpc() {
     return new Uint8Array(readFileSync(join(sessionsDir(), name)));
   });
   ipcMain.handle('sessions:delete', (_e, name: string) => deleteSession(sessionsDir(), name));
+  ipcMain.handle('sessions:deleteAll', () => deleteAllSessions(sessionsDir(), recorder.name));
   ipcMain.handle('sessions:csv', async (_e, name: string) => {
     if (name.includes('/') || name.includes('\\')) throw new Error('bad name');
     const res = await dialog.showSaveDialog(win!, { defaultPath: name.replace(/\.fhs$/, '.csv'), filters: [{ name: 'CSV', extensions: ['csv'] }] });

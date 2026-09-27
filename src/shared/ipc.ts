@@ -90,6 +90,8 @@ export interface FhBridge {
   listSessions(): Promise<SessionMeta[]>;
   readSession(name: string): Promise<Uint8Array>;
   deleteSession(name: string): Promise<void>;
+  /** removes all recordings except an active one; resolves to the number deleted */
+  deleteAllSessions(): Promise<number>;
   exportCsv(name: string): Promise<string | null>;
   revealSessions(): Promise<void>;
   importModel(): Promise<Settings>;
