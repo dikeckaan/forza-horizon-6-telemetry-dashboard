@@ -237,6 +237,12 @@ export function prepareRig(source: THREE.Group, paint: string, opts: ModelOption
       steer.position.copy(wc);
       root.updateMatrixWorld(true);
       spin.attach(node);
+      // calipers/pads are fixed to the upright: steer with the wheel but never spin
+      const fixed: THREE.Object3D[] = [];
+      node.traverse((o) => {
+        if (o !== node && /caliper|brake.?pad|pad\b/i.test(o.name)) fixed.push(o);
+      });
+      for (const o of fixed) steer.attach(o);
       node.traverse((o) => {
         const m = o as THREE.Mesh;
         if (!m.isMesh) return;

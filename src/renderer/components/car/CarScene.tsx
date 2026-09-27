@@ -60,6 +60,8 @@ function Car({ rig, xray, exaggerate, motion }: { rig: CarRig; xray: boolean; ex
   const yawG = useRef<THREE.Group>(null);
   const angles = useRef([0, 0, 0, 0]);
   const heat = useRef([0, 0, 0, 0]);
+  // low-passed visual state: raw telemetry (keyboard steering, suspension noise) is too jumpy to show 1:1
+  const smooth = useRef({ steer: 0, susp: [0.5, 0.5, 0.5, 0.5], roll: 0, pitch: 0, heave: 0 });
   const springGeo = useMemo(() => springGeometry(), []);
   const springs = useRef<(THREE.Mesh | null)[]>([]);
 
@@ -86,18 +88,30 @@ function Car({ rig, xray, exaggerate, motion }: { rig: CarRig; xray: boolean; ex
     m.gLat += (f.accelerationX / 9.81 - m.gLat) * Math.min(1, d * 6);
     if (yawG.current) yawG.current.rotation.y = m.beta;
 
+    const sm = smooth.current;
+    const ease = (rate: number) => 1 - Math.exp(-rate * d);
+    for (let i = 0; i < 4; i++) sm.susp[i] += (f.normalizedSuspensionTravel[i] - sm.susp[i]) * ease(12);
+    const [fl, fr, rl, rr] = sm.susp;
+    // body motion is where the suspension shows; the multiplier only exaggerates it
     const k = Math.min(exaggerate, 6);
-    const [fl, fr, rl, rr] = f.normalizedSuspensionTravel;
-    rig.body.rotation.z = -Math.atan2(((fl + rl - fr - rr) / 2) * RIDE, rig.track) * k;
-    rig.body.rotation.x = Math.atan2(((fl + fr - rl - rr) / 2) * RIDE, rig.wheelbase) * k;
-    rig.body.position.y = -((fl + fr + rl + rr) / 4 - 0.5) * RIDE * 0.6;
+    sm.roll += (-Math.atan2(((fl + rl - fr - rr) / 2) * RIDE, rig.track) * k - sm.roll) * ease(10);
+    sm.pitch += (Math.atan2(((fl + fr - rl - rr) / 2) * RIDE, rig.wheelbase) * k - sm.pitch) * ease(10);
+    sm.heave += (-((fl + fr + rl + rr) / 4 - 0.5) * RIDE * 0.5 - sm.heave) * ease(10);
+    rig.body.rotation.z = sm.roll;
+    rig.body.rotation.x = sm.pitch;
+    rig.body.position.y = sm.heave;
+    // steering wheel input → road wheel angle, eased so keyboard taps don't snap the tyres
+    sm.steer += ((-f.steer / 127) * 0.42 - sm.steer) * ease(9);
 
     for (let i = 0; i < 4; i++) {
       const w = rig.wheels[i];
-      angles.current[i] += f.wheelRotationSpeed[i] * d;
+      // cap the visual spin rate: past ~15 rad/s the rim strobes and seems to wobble or run backwards
+      const rate = f.wheelRotationSpeed[i];
+      angles.current[i] += Math.sign(rate) * Math.min(Math.abs(rate), 15) * d;
       w.spin.rotation.x = angles.current[i];
-      if (i < 2) w.steer.rotation.y = (-f.steer / 127) * 0.5;
-      const travel = (f.normalizedSuspensionTravel[i] - 0.5) * RIDE * Math.min(k, 3) * 0.5;
+      if (i < 2) w.steer.rotation.y = sm.steer;
+      // wheels follow real travel (no exaggeration) so they stay in their arches
+      const travel = (sm.susp[i] - 0.5) * RIDE * 0.4;
       w.steer.position.y = w.baseY + travel;
       // brake discs heat up with brake × speed and cool down slowly
       heat.current[i] = Math.max(0, Math.min(1, heat.current[i] + (f.brake / 255) * Math.min(1, f.speed / 30) * d * 0.9 - d * 0.12));

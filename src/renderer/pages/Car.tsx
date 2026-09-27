@@ -15,7 +15,7 @@ const deg = (r: number) => (r * 180) / Math.PI;
 
 export function CarPage() {
   const f = useFrame();
-  const [ex, setEx] = useState(3);
+  const [ex, setEx] = useState(1);
   const [cam, setCam] = useState<CameraMode>(() => (localStorage.getItem('carCam') as CameraMode) || 'chase');
   const [xray, setXray] = useState(false);
   const [picker, setPicker] = useState(false);
