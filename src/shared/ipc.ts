@@ -27,6 +27,8 @@ export interface Settings {
   ground: 'wet' | 'asphalt' | 'concrete' | 'sand' | 'snow' | 'grass' | 'neon';
   /** post-processing (bloom, ambient occlusion…) */
   fx: boolean;
+  /** LAN second screen for phones and tablets */
+  remote: { enabled: boolean; port: number };
 }
 
 export interface CustomModel {
@@ -67,6 +69,7 @@ export interface Status {
   demo: boolean;
   recording: { active: boolean; name: string | null; packets: number };
   localAddresses: string[];
+  remote: { running: boolean; port: number; clients: number; error: string | null };
 }
 
 export interface SessionMeta {
@@ -82,7 +85,26 @@ export interface SessionMeta {
   distance: number;
 }
 
+export type BridgeKind = 'desktop' | 'remote' | 'mobile';
+
+export interface BridgeCaps {
+  /** list / replay recordings */
+  sessions: boolean;
+  /** delete recordings, export CSV, open folders */
+  manageSessions: boolean;
+  /** user-imported / downloaded 3D models are available */
+  customModels: boolean;
+  /** import .glb files and use the Sketchfab library */
+  modelLibrary: boolean;
+  /** UDP port, forwarding, recording, LAN server settings */
+  network: boolean;
+}
+
 export interface FhBridge {
+  kind: BridgeKind;
+  caps: BridgeCaps;
+  /** settings changed elsewhere (e.g. from a remote screen) */
+  onSettings?(cb: (s: Settings) => void): () => void;
   onPacket(cb: (packet: Uint8Array) => void): () => void;
   onStatus(cb: (s: Status) => void): () => void;
   getSettings(): Promise<Settings>;

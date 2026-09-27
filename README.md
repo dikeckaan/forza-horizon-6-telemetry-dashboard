@@ -1,44 +1,104 @@
-# FH Telemetry
+<div align="center">
 
-Forza Horizon 6'nın **Veri Çıkışı** (Data Out) telemetrisi için canlı masaüstü paneli.
-macOS, Windows ve Linux'ta çalışır.
+<img src="build/icon.png" width="96" alt="FH Telemetry icon" />
 
-## Oyunda ayar
+# FH Telemetry — Forza Horizon 6 Telemetry Dashboard
 
-Ayarlar › HUD ve Oynanış:
+**Free, open-source, real-time telemetry dashboard for Forza Horizon 6** (also reads Forza Horizon 5/4 and Forza Motorsport "Data Out").
+Tachometer, live 3D car with real car models, track map, charts, lap & sprint timing, recording and replay.
 
-- **Veri Çıkışı**: Açık
-- **Veri Çıkışı IP Adresi**: bu bilgisayarın IP'si (uygulamanın Ayarlar ekranında yazar)
-- **Veri Çıkışı IP Portu**: `20440`
+**Windows · macOS · Linux · Android · iOS · iPadOS · any browser on your LAN**
 
-## Ekranlar
+[![Build](https://github.com/dikeckaan/forza-horizon-6-telemetry-dashboard/actions/workflows/build.yml/badge.svg)](https://github.com/dikeckaan/forza-horizon-6-telemetry-dashboard/actions/workflows/build.yml)
+[![Latest release](https://img.shields.io/github/v/release/dikeckaan/forza-horizon-6-telemetry-dashboard?label=download)](https://github.com/dikeckaan/forza-horizon-6-telemetry-dashboard/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-pink.svg)](LICENSE)
 
-| Kısayol | Ekran | İçerik |
+[**⬇ Download**](https://github.com/dikeckaan/forza-horizon-6-telemetry-dashboard/releases/latest) ·
+[**▶ Try the web demo**](https://dikeckaan.github.io/forza-horizon-6-telemetry-dashboard/) ·
+[Türkçe](#türkçe)
+
+<img src="docs/screenshots/cockpit.png" alt="Forza Horizon 6 telemetry dashboard cockpit with tachometer, shift lights, pedals, G-force and track map" />
+
+</div>
+
+## Features
+
+- **Live cockpit** — tachometer with shift lights and SHIFT warning, gear and speed, LED pedals (throttle, brake, clutch, handbrake), steering, G-force circle, power / torque / boost / fuel with sparklines, mini map.
+- **Real car name** — the game only sends a number; the app knows all **671 Forza Horizon 6 cars** ("2019 Volkswagen Golf R", "2024 Koenigsegg Gemera", …).
+- **Live 3D car** — body roll & pitch from suspension, spinning & steering wheels, drift angle, tyre smoke, skid marks, glowing brake discs, exhaust backfire, head/brake lights.
+  - Real 3D models: two built in, **auto-download of the matching car from Sketchfab** (free account), or import any `.glb`.
+  - Scenes: day, sunset, night city · Grounds: wet / dry asphalt, concrete, sand, snow, grass, neon grid · bloom, ambient occlusion, reflections · chase / orbit / top camera · x-ray mode.
+- **Track map** coloured by speed or throttle/brake, follow mode, zoom & pan.
+- **Charts** — speed, RPM, gear, pedals, steering, G-forces, power, boost, tyre temperatures, suspension, tyre slip.
+- **Race & laps** — lap table, live delta to best lap, lap overlay; **sprint races** with position, % progress (route length is learned) and delta to your best run; rewinds handled.
+- **Recording & replay** — every drive is saved automatically; replay at 0.5×–8×, export CSV, delete one or all.
+- **Second screen** — turn on the LAN server and open the dashboard on any phone, tablet or PC browser by scanning a QR code.
+- **Raw data** view with all 85+ packet fields, units (km/h / mph, °C / °F, hp / kW, bar / psi, Nm / lb·ft), UDP forwarding to other tools (e.g. SimHub).
+
+| 3D car — sunset | 3D car — neon night |
+|---|---|
+| <img src="docs/screenshots/car-3d-sunset.png" alt="Live 3D car view with real car model at sunset on wet asphalt" /> | <img src="docs/screenshots/car-3d-neon-night.png" alt="Live 3D car on a neon grid at night" /> |
+| **Track map** | **Telemetry charts** |
+| <img src="docs/screenshots/map.png" alt="Forza track map coloured by speed" /> | <img src="docs/screenshots/charts.png" alt="Live telemetry charts: speed, RPM, pedals, G-force, tyre temperatures" /> |
+
+## Download
+
+Grab the file for your device from the [latest release](https://github.com/dikeckaan/forza-horizon-6-telemetry-dashboard/releases/latest):
+
+| Platform | File | Notes |
 |---|---|---|
-| 1 | Kokpit | Devir saati, shift ışıkları, vites/hız, pedallar, direksiyon, G-çemberi, güç/tork/turbo/yakıt, mini harita, tur ya da sprint bilgisi |
-| 2 | Araç & Lastikler | Gerçek 3D araç modelleri (iki yerleşik model + kendi .glb modelini yükleyebilirsin; tekerlekler otomatik bulunur), boya seçimi, akan yol, drift açısı, lastik dumanı ve fren izleri, kızaran fren diskleri, egzoz alevi, takip/serbest/üst kamera, röntgen modu. Yanında 4 lastik kartı |
-| 3 | Harita | Hıza ya da gaz/frene göre renklenen sürüş izi, takip modu, yakınlaştırma |
-| 4 | Grafikler | Hız, devir, vites, pedallar, direksiyon, G, güç, turbo, lastik sıcaklığı, süspansiyon ve kayma için kayan grafikler |
-| 5 | Yarış & Turlar | Pist yarışında tur tablosu, canlı delta ve tur karşılaştırması. Sprint yarışında pozisyon, % ilerleme ve en iyi koşuya göre delta |
-| 6 | Kayıtlar | Otomatik kaydedilen sürüşler: tekrar oynatma (0.5×–8×), CSV'ye aktarma |
-| 7 | Ham Veri | Paketteki tüm alanlar, canlı olarak |
-| 8 | Ayarlar | Port, birimler, UDP yönlendirme, demo modu, araç isimleri |
+| Windows 10/11 (x64, ARM64) | `…-windows-x64-setup.exe` or `…-portable.exe` | Unsigned: "More info → Run anyway" on SmartScreen |
+| macOS (Apple Silicon & Intel) | `…-mac-arm64.dmg` / `…-mac-x64.dmg` | Unsigned: right-click → Open the first time |
+| Linux | `.AppImage`, `.deb`, `.tar.gz` | `chmod +x` the AppImage |
+| Android (phone & tablet) | `…-android.apk` | Allow "install unknown apps" |
+| iOS / iPadOS | `…-ios-unsigned.ipa` | Needs re-signing (AltStore, Sideloadly or your Apple ID in Xcode). Easiest on iPad: use the **second screen** in a browser |
 
-Oyun rota uzunluğunu göndermez. Bu yüzden sprint yarışlarındaki % ilerleme, rotayı ilk kez
-baştan sona sürdüğünde öğrenilir ve sonraki koşularda gösterilir.
+## Set up Forza Horizon 6
 
-## Geliştirme
+In the game: **Settings → HUD and Gameplay**
+
+1. **Data Out**: On
+2. **Data Out IP Address**: the IP shown in the app (Settings → Connection)
+3. **Data Out IP Port**: `20440`
+
+That's it — drive and the dashboard comes alive. Packets are the 324-byte "Dash" format (verified against real FH6 captures).
+
+### Phone / tablet as a second screen
+
+Desktop app → Settings → **Phone / tablet screen** → turn on → scan the QR code. Works on iPhone, iPad, Android and any browser on the same Wi-Fi, no install.
+
+### Real 3D models of your car
+
+Settings → **3D car models (Sketchfab)** → paste your free Sketchfab API token (sketchfab.com → Settings → Password & API). When you get in a new car the app finds and downloads the best-matching model. Models belong to their authors; most are licensed for personal use.
+
+## Build from source
 
 ```bash
 npm install
-npm run dev        # Electron + Vite, canlı yenileme
-npm run dev:web    # yalnızca arayüz, tarayıcıda dahili demo verisiyle
-npm test           # ayrıştırıcı, tur/yarış takibi ve kayıt testleri (gerçek FH6 kayıtlarıyla)
-npm run dist       # kurulum paketleri → release/
+npm run dev        # desktop app with live reload
+npm run dev:web    # UI only, in the browser, with a built-in driving simulator
+npm test           # parser, lap/race tracking, recorder, 3D rig tests (real FH6 captures)
+npm run dist       # desktop installers → release/
+
+# mobile (Capacitor)
+npx vite build && npx cap sync
+npx cap open android   # or: npx cap open ios
 ```
 
-Kayıtlar `userData/sessions/*.fhs` altında tutulur (macOS'ta `~/Library/Application Support/FH Telemetry/sessions`).
+Every push builds all platforms on GitHub Actions; tags `v*` publish a release.
 
-## 3D model lisansları
+**Stack:** Electron · React · TypeScript · three.js / react-three-fiber · uPlot · Capacitor (Android/iOS, native UDP plugin in `plugins/udp-telemetry`) · Vite · Vitest.
 
-Yerleşik modeller CC BY 4.0 lisanslıdır, ayrıntılar `src/renderer/public/models/CREDITS.md` dosyasında.
+## Türkçe
+
+**FH Telemetry**, Forza Horizon 6'nın "Veri Çıkışı" (Data Out) telemetrisini gerçek zamanlı gösteren ücretsiz ve açık kaynaklı bir paneldir. Devir saati, gerçek araç modelleriyle canlı 3D araç, harita, grafikler, tur ve sprint zamanlama, otomatik kayıt ve tekrar oynatma içerir. Windows, macOS, Linux, Android, iOS ve iPad'de çalışır; telefon ya da tablet ikinci ekran olarak tarayıcıdan da bağlanabilir. Arayüz Türkçedir.
+
+Kurulum: [son sürümden](https://github.com/dikeckaan/forza-horizon-6-telemetry-dashboard/releases/latest) cihazına uygun dosyayı indir. Oyunda **Ayarlar › HUD ve Oynanış › Veri Çıkışı: Açık**, IP olarak uygulamada yazan adresi, port olarak `20440` gir.
+
+## Credits & disclaimer
+
+- Car ordinal list: [HDR's FH6 list](https://gist.github.com/HDR/0659d1717bc61504bf83750628963f4f).
+- Built-in 3D models (CC BY 4.0) and sky/HDRI assets (CC0, Poly Haven) — see [`CREDITS.md`](src/renderer/public/models/CREDITS.md).
+- Forza, Forza Horizon and all car names are trademarks of their respective owners. This is an unofficial fan project, not affiliated with or endorsed by Microsoft, Xbox Game Studios, Playground Games or Turn 10.
+
+Code: [MIT](LICENSE).

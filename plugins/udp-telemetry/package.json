@@ -1,0 +1,33 @@
+{
+  "name": "capacitor-udp-telemetry",
+  "version": "0.0.1",
+  "description": "Receives Forza Data Out UDP packets on Android and iOS",
+  "author": "Abdurrahman Kaan Dikeç",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dikeckaan/forza-horizon-6-telemetry-dashboard.git"
+  },
+  "capacitor": {
+    "ios": {
+      "src": "ios"
+    },
+    "android": {
+      "src": "android"
+    }
+  },
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "android/src/main/",
+    "android/build.gradle",
+    "ios/Sources",
+    "Package.swift",
+    "CapacitorUdpTelemetry.podspec"
+  ],
+  "peerDependencies": {
+    "@capacitor/core": ">=8.0.0"
+  }
+}

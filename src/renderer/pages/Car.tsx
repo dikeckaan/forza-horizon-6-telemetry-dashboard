@@ -112,6 +112,7 @@ export function CarPage() {
                   </div>
                 ))}
                 <div style={{ height: 1, background: 'var(--line)', margin: '4px 0' }} />
+                {window.fh?.caps.modelLibrary && (
                 <MenuItem
                   active={false}
                   onClick={() => {
@@ -121,9 +122,12 @@ export function CarPage() {
                 >
                   🔎 Sketchfab kütüphanesi{realName ? ` · ${searchName(realName)}` : ''}…
                 </MenuItem>
-                <MenuItem active={false} onClick={importModel}>
-                  + Kendi modelini yükle (.glb)…
-                </MenuItem>
+                )}
+                {window.fh?.caps.modelLibrary && (
+                  <MenuItem active={false} onClick={importModel}>
+                    + Kendi modelini yükle (.glb)…
+                  </MenuItem>
+                )}
                 <MenuItem active={flip} onClick={() => update({ modelFlips: { ...settings.modelFlips, [model.id]: !flip } })}>
                   ⇅ Önü/arkası ters görünüyorsa çevir
                 </MenuItem>

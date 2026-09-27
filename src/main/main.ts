@@ -12,6 +12,7 @@ import type { Settings, Status } from '../shared/ipc';
 import { loadSettings, saveSettings } from './settings';
 import { Recorder, deleteAllSessions, deleteSession, listSessions, sessionToCsv } from './sessions';
 import { checkToken, downloadModel, searchModels } from './sketchfab';
+import { RemoteServer } from './remote';
 import type { SketchfabModel } from '../shared/ipc';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
@@ -63,7 +64,9 @@ const status: Status = {
   demo: false,
   recording: { active: false, name: null, packets: 0 },
   localAddresses: [],
+  remote: { running: false, port: 0, clients: 0, error: null },
 };
+let remote: RemoteServer;
 let packetCount = 0;
 
 function localAddresses() {
@@ -86,6 +89,7 @@ function handlePacket(buf: Uint8Array, source: string, fromDemo = false) {
     fwd.send(buf, settings.forward.port, settings.forward.host);
   }
   win?.webContents.send('packet', buf);
+  remote?.packet(buf);
 }
 
 function startUdp() {
@@ -132,7 +136,29 @@ function applyDemo() {
 
 function pushStatus() {
   status.recording = { active: recorder.active, name: recorder.name, packets: recorder.packets };
+  status.remote = { running: remote?.running ?? false, port: remote?.port ?? 0, clients: remote?.clientCount ?? 0, error: remote?.error ?? null };
   win?.webContents.send('status', status);
+  remote?.event('status', status);
+}
+
+function applyRemote() {
+  if (settings.remote.enabled) remote.start(settings.remote.port);
+  else remote.stop();
+}
+
+/** one place for settings changes, from the window or from a remote screen */
+function applySettings(patch: Partial<Settings>): Settings {
+  const prev = settings;
+  settings = { ...settings, ...patch };
+  saveSettings(settings);
+  if (patch.port !== undefined && patch.port !== prev.port) startUdp();
+  if (patch.demo !== undefined && patch.demo !== prev.demo) applyDemo();
+  if (patch.record === false) recorder.close();
+  if (patch.remote && (patch.remote.enabled !== prev.remote.enabled || patch.remote.port !== prev.remote.port)) applyRemote();
+  win?.webContents.send('settings', settings);
+  remote?.event('settings', settings);
+  pushStatus();
+  return settings;
 }
 
 function createWindow() {
@@ -179,16 +205,7 @@ function createWindow() {
 
 function registerIpc() {
   ipcMain.handle('settings:get', () => settings);
-  ipcMain.handle('settings:set', (_e, patch: Partial<Settings>) => {
-    const prev = settings;
-    settings = { ...settings, ...patch };
-    saveSettings(settings);
-    if (patch.port !== undefined && patch.port !== prev.port) startUdp();
-    if (patch.demo !== undefined && patch.demo !== prev.demo) applyDemo();
-    if (patch.record === false) recorder.close();
-    pushStatus();
-    return settings;
-  });
+  ipcMain.handle('settings:set', (_e, patch: Partial<Settings>) => applySettings(patch));
   ipcMain.handle('sessions:list', () => listSessions(sessionsDir()));
   ipcMain.handle('sessions:read', (_e, name: string) => {
     if (name.includes('/') || name.includes('\\')) throw new Error('bad name');
@@ -268,11 +285,21 @@ function registerIpc() {
 app.whenReady().then(() => {
   settings = loadSettings();
   recorder = new Recorder(sessionsDir());
+  remote = new RemoteServer({
+    rendererDir: join(here, '../renderer'),
+    getSettings: () => settings,
+    setSettings: (patch) => applySettings(patch as Partial<Settings>),
+    getStatus: () => status,
+    listSessions: () => listSessions(sessionsDir()),
+    sessionPath: (name) => (/^[\w.-]+\.fhs$/.test(name) ? join(sessionsDir(), name) : null),
+    modelPath: (id) => (safeId(id) ? join(modelsDir(), `${id}.glb`) : null),
+  });
   status.localAddresses = localAddresses();
   registerIpc();
   createWindow();
   startUdp();
   applyDemo();
+  applyRemote();
 
   setInterval(() => {
     status.packetsPerSec = packetCount;
@@ -293,5 +320,6 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   recorder?.close();
+  remote?.stop();
   stopUdp();
 });

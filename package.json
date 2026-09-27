@@ -1,10 +1,40 @@
 {
-  "name": "fh6-telemetry",
+  "name": "forza-horizon-6-telemetry-dashboard",
   "productName": "FH Telemetry",
-  "version": "0.1.0",
-  "description": "Forza Horizon 6 live telemetry dashboard",
-  "author": "Kaan Dikec",
+  "version": "1.0.0",
+  "description": "Real-time Forza Horizon 6 telemetry dashboard (Data Out UDP): tachometer, live 3D car with real models, track map, charts, lap and sprint timing, recording & replay. Windows, macOS, Linux, Android, iOS and iPad.",
+  "author": {
+    "name": "Abdurrahman Kaan Dikeç",
+    "email": "dikeckaan@gmail.com"
+  },
   "license": "MIT",
+  "homepage": "https://dikeckaan.github.io/forza-horizon-6-telemetry-dashboard/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dikeckaan/forza-horizon-6-telemetry-dashboard.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dikeckaan/forza-horizon-6-telemetry-dashboard/issues"
+  },
+  "keywords": [
+    "forza",
+    "forza-horizon",
+    "forza-horizon-6",
+    "fh6",
+    "forza-horizon-5",
+    "telemetry",
+    "data-out",
+    "udp",
+    "dashboard",
+    "sim-racing",
+    "racing",
+    "electron",
+    "capacitor",
+    "three.js",
+    "react",
+    "tachometer",
+    "lap-timer"
+  ],
   "main": "out/main/main.js",
   "type": "module",
   "scripts": {
@@ -26,31 +56,49 @@
       "package.json"
     ],
     "mac": {
-      "target": [
-        {
-          "target": "dmg",
-          "arch": [
-            "arm64",
-            "x64"
-          ]
-        }
-      ],
       "category": "public.app-category.utilities",
+      "identity": null,
       "extendInfo": {
         "NSLocalNetworkUsageDescription": "FH Telemetry, Forza Horizon’ın yerel ağdan gönderdiği telemetri verisini alır."
       },
-      "identity": null
+      "target": [
+        "dmg",
+        "zip"
+      ]
     },
     "win": {
-      "target": "nsis"
+      "target": [
+        "nsis",
+        "portable"
+      ]
     },
     "linux": {
-      "target": "AppImage",
-      "category": "Utility"
+      "target": [
+        "AppImage",
+        "deb",
+        "tar.gz"
+      ],
+      "category": "Utility",
+      "maintainer": "Abdurrahman Kaan Dikeç <dikeckaan@gmail.com>",
+      "synopsis": "Forza Horizon 6 telemetry dashboard",
+      "icon": "build/icon.png"
     },
-    "icon": "build/icon.png"
+    "icon": "build/icon.png",
+    "artifactName": "FH-Telemetry-${version}-${os}-${arch}.${ext}",
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "FH-Telemetry-${version}-windows-${arch}-setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "FH-Telemetry-${version}-windows-${arch}-portable.${ext}"
+    }
   },
   "devDependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/cli": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/ios": "^8.5.2",
     "@fontsource-variable/inter": "^5.3.0",
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "@fontsource/rajdhani": "^5.3.0",
@@ -58,6 +106,7 @@
     "@react-three/fiber": "^9.8.1",
     "@react-three/postprocessing": "^3.1.3",
     "@types/node": "^26.6.3",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/three": "^0.186.0",
@@ -66,6 +115,7 @@
     "electron-builder": "^26.15.3",
     "esbuild": "^0.28.2",
     "postprocessing": "^6.39.5",
+    "qrcode": "^1.5.4",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "three": "^0.186.1",
@@ -73,6 +123,9 @@
     "uplot": "^1.6.32",
     "vite": "^8.3.1",
     "vitest": "^5.0.2"
+  },
+  "dependencies": {
+    "capacitor-udp-telemetry": "file:plugins/udp-telemetry"
   },
   "allowScripts": {
     "esbuild@0.28.2": true,

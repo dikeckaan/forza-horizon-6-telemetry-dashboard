@@ -1,7 +1,14 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import type { DownloadProgress, FhBridge, Status } from '../shared/ipc';
+import type { DownloadProgress, FhBridge, Settings, Status } from '../shared/ipc';
 
 const bridge: FhBridge = {
+  kind: 'desktop',
+  caps: { sessions: true, manageSessions: true, customModels: true, modelLibrary: true, network: true },
+  onSettings(cb) {
+    const h = (_e: IpcRendererEvent, s: Settings) => cb(s);
+    ipcRenderer.on('settings', h);
+    return () => ipcRenderer.off('settings', h);
+  },
   onPacket(cb) {
     const h = (_e: IpcRendererEvent, p: Uint8Array) => cb(p);
     ipcRenderer.on('packet', h);

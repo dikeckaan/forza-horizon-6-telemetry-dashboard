@@ -21,6 +21,7 @@ export const DEFAULT_SETTINGS: Settings = {
   scene: 'day',
   ground: 'wet',
   fx: true,
+  remote: { enabled: false, port: 20480 },
 };
 
 const file = () => join(app.getPath('userData'), 'settings.json');
@@ -34,6 +35,7 @@ export function loadSettings(): Settings {
       units: { ...DEFAULT_SETTINGS.units, ...raw.units },
       forward: { ...DEFAULT_SETTINGS.forward, ...raw.forward },
       sketchfab: { ...DEFAULT_SETTINGS.sketchfab, ...raw.sketchfab },
+      remote: { ...DEFAULT_SETTINGS.remote, ...raw.remote },
     };
   } catch {
     return structuredClone(DEFAULT_SETTINGS);

@@ -9,6 +9,15 @@ import './styles.css';
 import { App } from './App';
 import { store } from './store';
 import { DemoSim } from '../shared/demo';
+import { Capacitor } from '@capacitor/core';
+import { createMobileBridge } from './platform/mobile';
+import { createRemoteBridge } from './platform/remote';
+
+// desktop (Electron preload) → phone/tablet native app → phone/tablet browser on the LAN server
+if (!window.fh) {
+  if (Capacitor.isNativePlatform()) window.fh = createMobileBridge();
+  else if (document.querySelector('meta[name="fh-remote"]')) window.fh = createRemoteBridge();
+}
 
 if (window.fh) {
   window.fh.onPacket((p) => {

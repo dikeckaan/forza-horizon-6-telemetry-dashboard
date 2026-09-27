@@ -22,7 +22,8 @@ export function SessionsPage({ onOpen }: { onOpen: () => void }) {
   }, []);
   useEffect(refresh, [refresh, recording]);
 
-  if (!window.fh) {
+  const manage = !!window.fh?.caps.manageSessions;
+  if (!window.fh?.caps.sessions) {
     return (
       <div className="panel empty" style={{ minHeight: 300 }}>
         <div>
@@ -68,7 +69,7 @@ export function SessionsPage({ onOpen }: { onOpen: () => void }) {
           </div>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-          {confirmAll ? (
+          {!manage ? null : confirmAll ? (
             <>
               <span style={{ alignSelf: 'center', color: 'var(--bad)' }}>{list?.length ?? 0} kayıt kalıcı olarak silinsin mi?</span>
               <button
@@ -94,9 +95,11 @@ export function SessionsPage({ onOpen }: { onOpen: () => void }) {
           <button className="btn" onClick={refresh}>
             Yenile
           </button>
-          <button className="btn" onClick={() => window.fh!.revealSessions()}>
-            <IconFolder width={15} height={15} /> Klasörü aç
-          </button>
+          {manage && (
+            <button className="btn" onClick={() => window.fh!.revealSessions()}>
+              <IconFolder width={15} height={15} /> Klasörü aç
+            </button>
+          )}
         </div>
       </div>
       {msg && (
@@ -175,12 +178,16 @@ export function SessionsPage({ onOpen }: { onOpen: () => void }) {
                           <button className="btn primary" disabled={busy === m.name} onClick={() => play(m)}>
                             <IconPlay width={13} height={13} /> Oynat
                           </button>
-                          <button className="btn" disabled={busy === m.name} onClick={() => exportCsv(m)} title="CSV olarak dışa aktar">
-                            <IconDownload width={15} height={15} /> CSV
-                          </button>
-                          <button className="btn ghost danger" onClick={() => setConfirm(m.name)} title="Sil">
-                            <IconTrash width={15} height={15} />
-                          </button>
+                          {manage && (
+                            <>
+                              <button className="btn" disabled={busy === m.name} onClick={() => exportCsv(m)} title="CSV olarak dışa aktar">
+                                <IconDownload width={15} height={15} /> CSV
+                              </button>
+                              <button className="btn ghost danger" onClick={() => setConfirm(m.name)} title="Sil">
+                                <IconTrash width={15} height={15} />
+                              </button>
+                            </>
+                          )}
                         </span>
                       )}
                     </td>

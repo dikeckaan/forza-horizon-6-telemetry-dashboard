@@ -39,6 +39,7 @@ const browserStatus: Status = {
   demo: true,
   recording: { active: false, name: null, packets: 0 },
   localAddresses: ['127.0.0.1'],
+  remote: { running: false, port: 0, clients: 0, error: null },
 };
 
 export function App() {
@@ -57,7 +58,12 @@ export function App() {
   useEffect(() => {
     if (!window.fh) return;
     window.fh.getSettings().then(setSettings);
-    return window.fh.onStatus(setStatus);
+    const offSettings = window.fh.onSettings?.(setSettings);
+    const offStatus = window.fh.onStatus(setStatus);
+    return () => {
+      offSettings?.();
+      offStatus();
+    };
   }, []);
 
   const update = useCallback((patch: Partial<Settings>) => {
@@ -89,7 +95,7 @@ export function App() {
         <div className="app">
           <TitleBar />
           <nav className="nav">
-            {PAGES.map((p) => (
+            {PAGES.filter((p) => p.id !== 'sessions' || window.fh?.caps.sessions).map((p) => (
               <button key={p.id} className={page === p.id ? 'active' : ''} onClick={() => setPage(p.id)} aria-label={p.label}>
                 {p.icon}
                 <span className="tip">{p.label}</span>

@@ -1,0 +1,8 @@
+{
+  "appId": "com.kaandikec.fhtelemetry",
+  "appName": "FH Telemetry",
+  "webDir": "out/renderer",
+  "backgroundColor": "#07080b",
+  "android": { "allowMixedContent": false },
+  "ios": { "contentInset": "never", "backgroundColor": "#07080b" }
+}

@@ -36,7 +36,8 @@ export type ModelSource = 'user' | 'learned' | 'guess';
 export function allModels(s: Settings): ModelDef[] {
   return [
     ...BUILTIN_MODELS,
-    ...s.customModels.map((m) => ({ id: m.id, label: m.name, url: null, original: true, author: m.author, license: m.license, viewerUrl: m.viewerUrl })),
+    // user models live on the desktop; phones only see them through the LAN server
+    ...(typeof window !== 'undefined' && window.fh?.caps.customModels ? s.customModels : []).map((m) => ({ id: m.id, label: m.name, url: null, original: true, author: m.author, license: m.license, viewerUrl: m.viewerUrl })),
   ];
 }
 

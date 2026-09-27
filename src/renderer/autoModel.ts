@@ -58,7 +58,7 @@ const tried = new Set<number>();
 /** When a new car shows up, find and fetch its real model from Sketchfab (once per car). */
 export function useAutoModel(ordinal: number, settings: Settings, update: (patch: Partial<Settings>) => void) {
   useEffect(() => {
-    if (!window.fh || !ordinal || !settings.autoModels || !settings.sketchfab.connected) return;
+    if (window.fh?.kind !== 'desktop' || !ordinal || !settings.autoModels || !settings.sketchfab.connected) return;
     // a generic built-in body is only a placeholder; keep real or user-imported models
     const assigned = settings.carModels[String(ordinal)];
     if ((assigned && settings.customModels.some((m) => m.id === assigned)) || tried.has(ordinal)) return;

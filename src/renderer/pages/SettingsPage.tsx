@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import QRCode from 'qrcode';
 import { useFrame, useSettings, useStatus } from '../hooks';
 import type { UnitPrefs } from '../../shared/units';
 import { carCount, knownCarName } from '../../shared/cars';
@@ -12,6 +13,8 @@ export function SettingsPage() {
   const [fwdPort, setFwdPort] = useState(String(settings.forward.port));
   const [carName, setCarName] = useState('');
   const [sfToken, setSfToken] = useState('');
+  const desktop = window.fh?.kind === 'desktop';
+  const library = !!window.fh?.caps.modelLibrary;
   const [sfErr, setSfErr] = useState<string | null>(null);
   const units = settings.units;
   const setUnit = <K extends keyof UnitPrefs>(k: K, v: UnitPrefs[K]) => update({ units: { ...units, [k]: v } });
@@ -44,6 +47,7 @@ export function SettingsPage() {
         </Row>
       </Section>
 
+      {desktop && (
       <Section title="Kayıt">
         <Row label="Otomatik kayıt" hint="Sürüşler .fhs dosyası olarak saklanır (~1.2 MB/dk)">
           <button className={`toggle ${settings.record ? 'on' : ''}`} onClick={() => update({ record: !settings.record })} aria-label="Otomatik kayıt" />
@@ -65,7 +69,9 @@ export function SettingsPage() {
           </Row>
         )}
       </Section>
+      )}
 
+      {library && (
       <Section title="3D araç modelleri (Sketchfab)">
         <p className="muted" style={{ marginTop: 0, lineHeight: 1.5 }}>
           Sürdüğün aracın gerçek 3D modeli Sketchfab’dan bulunup indirilir. İndirmek için ücretsiz bir Sketchfab hesabının API anahtarı gerekir
@@ -113,6 +119,9 @@ export function SettingsPage() {
           <span className="mono">{settings.customModels.filter((m) => m.source === 'sketchfab').length}</span>
         </Row>
       </Section>
+      )}
+
+      {desktop && <RemoteSection />}
 
       <Section title="Birimler">
         <Row label="Hız">
@@ -212,5 +221,58 @@ function Seg<T extends string>({ value, options, onChange }: { value: T; options
         </button>
       ))}
     </div>
+  );
+}
+
+/** LAN second screen: phones/tablets open the dashboard in their browser. */
+function RemoteSection() {
+  const { settings, update } = useSettings();
+  const status = useStatus();
+  const [qr, setQr] = useState<string | null>(null);
+  const r = settings.remote;
+  const urls = (status?.localAddresses ?? []).map((a) => `http://${a}:${r.port}/`);
+  const [port, setPort] = useState(String(r.port));
+  useEffect(() => {
+    if (!r.enabled || !urls[0]) {
+      setQr(null);
+      return;
+    }
+    QRCode.toDataURL(urls[0], { margin: 1, width: 180, color: { dark: '#0b0d12', light: '#ffffff' } }).then(setQr, () => setQr(null));
+  }, [r.enabled, urls[0]]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <Section title="Telefon / tablet ekranı">
+      <p className="muted" style={{ marginTop: 0, lineHeight: 1.5 }}>
+        Aynı Wi-Fi’daki telefon, iPad ya da başka bir bilgisayar tarayıcıdan bu adrese girerek paneli ikinci ekran olarak kullanabilir. Kurulum gerekmez; kayıtlar ve indirilen 3D modeller de görünür.
+      </p>
+      <Row label="Yayını aç" hint="Yerel ağdaki herkes erişebilir; yalnızca güvendiğin ağlarda aç">
+        <button className={`toggle ${r.enabled ? 'on' : ''}`} onClick={() => update({ remote: { ...r, enabled: !r.enabled } })} aria-label="Yayını aç" />
+      </Row>
+      <Row label="Port">
+        <input type="number" value={port} onChange={(e) => setPort(e.target.value)} style={{ width: 110 }} />
+        <button className="btn" disabled={Number(port) === r.port || !(Number(port) > 1024 && Number(port) < 65536)} onClick={() => update({ remote: { ...r, port: Number(port) } })}>
+          Uygula
+        </button>
+      </Row>
+      {r.enabled && (
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center', padding: '10px 0', borderTop: '1px solid var(--line)' }}>
+          {qr && <img src={qr} alt="QR" width={120} height={120} style={{ borderRadius: 8 }} />}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {status?.remote.error ? (
+              <span style={{ color: 'var(--bad)' }}>{status.remote.error}</span>
+            ) : (
+              <span className="muted">
+                {status?.remote.clients ?? 0} cihaz bağlı · telefon kamerasıyla QR’ı okut
+              </span>
+            )}
+            {urls.map((u) => (
+              <span key={u} className="kbd" style={{ userSelect: 'text' }}>
+                {u}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </Section>
   );
 }
