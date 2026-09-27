@@ -20,7 +20,8 @@ export function CarPage() {
   const [xray, setXray] = useState(false);
   const [picker, setPicker] = useState(false);
   const { settings, update } = useSettings();
-  const drift = f.speed > 3 ? deg(Math.atan2(f.velocityX, Math.max(0.1, f.velocityZ))) : 0;
+  // + = nose points right of the direction of travel (right-hand drift)
+  const drift = f.speed > 3 ? -deg(Math.atan2(f.velocityX, Math.max(0.1, f.velocityZ))) : 0;
   const { model, source } = resolveModel(f, settings);
   const ord = String(f.carOrdinal);
   const paint = settings.carPaints[ord] ?? autoPaint(f.carOrdinal);
@@ -67,6 +68,9 @@ export function CarPage() {
         <TireCard f={f} i={2} />
       </div>
       <div className="panel" style={{ padding: 0, overflow: 'hidden', minHeight: 560 }}>
+        {/* soft shading keeps the overlays readable on a bright sky/asphalt */}
+        <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 110, zIndex: 1, pointerEvents: 'none', background: 'linear-gradient(rgba(7,8,11,.72), rgba(7,8,11,0))' }} />
+        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 60, zIndex: 1, pointerEvents: 'none', background: 'linear-gradient(rgba(7,8,11,0), rgba(7,8,11,.7))' }} />
         <div style={{ position: 'absolute', inset: 0 }}>
           <Suspense fallback={<div className="empty">3D yükleniyor…</div>}>
             <CarScene model={model} paint={paint} flip={flip} xray={xray} exaggerate={ex} camera={cam} />
@@ -137,7 +141,10 @@ export function CarPage() {
             <button className={`btn ${xray ? 'primary' : ''}`} onClick={() => setXray((v) => !v)} title="Gövdeyi şeffaf yap, yayları göster">
               Röntgen
             </button>
-            <div className="seg" title="Gövde hareketini abart">
+            <span style={{ fontSize: 11.5, alignSelf: 'center', color: 'rgba(255,255,255,.8)' }} title="Virajda yatma, frende öne basma: süspansiyon verisinden. 1× gerçek, 3×/6× abartılı.">
+              Gövde hareketi
+            </span>
+            <div className="seg" title="Virajda yatma, frende öne basma: süspansiyon verisinden. 1× gerçek, 3×/6× abartılı.">
               {[1, 3, 6].map((k) => (
                 <button key={k} className={ex === k ? 'on' : ''} onClick={() => setEx(k)}>
                   {k}×
@@ -146,8 +153,8 @@ export function CarPage() {
             </div>
           </div>
         </div>
-        <div style={{ position: 'absolute', bottom: 12, left: 14, right: 14, display: 'flex', justifyContent: 'space-between', pointerEvents: 'none' }} className="mono muted">
-          <span>{cam === 'orbit' ? 'sürükle: döndür · tekerlek: yakınlaş' : 'araç kayma açısı kadar döner · yol hızla akar'}</span>
+        <div style={{ position: 'absolute', bottom: 12, left: 14, right: 14, zIndex: 2, display: 'flex', justifyContent: 'space-between', pointerEvents: 'none', color: 'rgba(255,255,255,.72)' }} className="mono">
+          <span>{cam === 'orbit' ? 'sürükle: döndür · tekerlek: yakınlaş' : 'zemin ve izler aracın gerçek hareketiyle akar'}</span>
           <span>duman/iz: lastik kayması · kızaran disk: fren ısısı</span>
         </div>
       </div>

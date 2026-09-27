@@ -246,11 +246,12 @@ export function prepareRig(source: THREE.Group, paint: string, opts: ModelOption
       if (PAINT_RE.test(name) && !NOT_PAINT_RE.test(name)) {
         const src = mat as THREE.MeshStandardMaterial;
         const p = new THREE.MeshPhysicalMaterial({
+          // automotive paint: coloured base coat under a glossy clear coat
           color: paint,
-          metalness: 0.75,
-          roughness: 0.32,
+          metalness: 0.45,
+          roughness: 0.38,
           clearcoat: 1,
-          clearcoatRoughness: 0.04,
+          clearcoatRoughness: 0.03,
           // keep a hint of metallic flake without the sparkle noise
           normalMap: src.normalMap ?? null,
           normalScale: new THREE.Vector2(0.12, 0.12),

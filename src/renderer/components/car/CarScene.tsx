@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { ContactShadows, Environment, Lightformer, OrbitControls } from '@react-three/drei';
+import { ContactShadows, Environment, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { store } from '../../store';
 import { fToC } from '../../../shared/units';
@@ -11,14 +11,85 @@ import type { ModelDef } from './models';
 export type CameraMode = 'chase' | 'orbit' | 'top';
 
 /**
- * Shared per-frame motion state. The scene lives in the "travel frame": the
- * road scrolls along -z at the car's speed and the car itself is yawed by its
- * slip (drift) angle, so slides read instantly.
+ * Shared per-frame motion state. The car stays at the origin facing +z; the
+ * ground (road, skid marks, smoke) is placed in real world coordinates and
+ * moved by the inverse of the car's pose, so turns and slides look exactly
+ * like they happened in the game.
+ *
+ * World mapping: three.x = −ForzaX, three.z = ForzaZ (Forza is left-handed),
+ * so the car's world rotation about y is −yaw.
  */
 interface Motion {
-  beta: number;
+  /** direction of travel in the car frame (0 = straight ahead, + = towards the car's left) */
+  travel: number;
   speed: number;
   gLat: number;
+  x: number;
+  z: number;
+  rot: number;
+  /** bumps when the car jumped (rewind, fast travel, replay seek) */
+  epoch: number;
+}
+
+const newMotion = (): Motion => ({ travel: 0, speed: 0, gLat: 0, x: 0, z: 0, rot: 0, epoch: 0 });
+
+/** car-frame point → world (three) coordinates */
+function toWorld(m: Motion, lx: number, lz: number): [number, number] {
+  const c = Math.cos(m.rot);
+  const s = Math.sin(m.rot);
+  return [lx * c + lz * s + m.x, -lx * s + lz * c + m.z];
+}
+
+/** Extrapolates the pose between 60 Hz packets so the ground glides instead of stepping. */
+function PoseTracker({ motion }: { motion: React.MutableRefObject<Motion> }) {
+  useFrame((_, dt) => {
+    const f = store.frame;
+    if (!f) return;
+    const m = motion.current;
+    const d = Math.min(dt, 0.05);
+    const age = f.isRaceOn ? Math.min(0.05, (performance.now() - store.lastIngestAt) / 1000) : 0;
+    const yaw = f.yaw + f.angularVelocityY * age;
+    // local → world velocity (Forza: forward = (sin yaw, cos yaw), right = (cos yaw, −sin yaw))
+    const vX = f.velocityZ * Math.sin(f.yaw) + f.velocityX * Math.cos(f.yaw);
+    const vZ = f.velocityZ * Math.cos(f.yaw) - f.velocityX * Math.sin(f.yaw);
+    const x = -(f.positionX + vX * age);
+    const z = f.positionZ + vZ * age;
+    if (Math.hypot(x - m.x, z - m.z) > 40) m.epoch++;
+    m.x = x;
+    m.z = z;
+    m.rot = -yaw;
+    const sp = Math.hypot(f.velocityX, f.velocityZ);
+    const travel = sp > 2.5 && f.velocityZ > -0.5 ? Math.max(-1.3, Math.min(1.3, Math.atan2(-f.velocityX, Math.max(0.5, f.velocityZ)))) : 0;
+    m.travel += (travel - m.travel) * Math.min(1, d * 6);
+    m.speed = f.velocityZ < -0.5 ? -sp : sp;
+    m.gLat += (f.accelerationX / 9.81 - m.gLat) * Math.min(1, d * 6);
+  }, -1);
+  return null;
+}
+
+/** Holds world-space things; its transform is the inverse of the car pose. */
+function Ground({ motion, children }: { motion: React.MutableRefObject<Motion>; children: React.ReactNode }) {
+  const ref = useRef<THREE.Group>(null);
+  const pose = useMemo(() => new THREE.Matrix4(), []);
+  const q = useMemo(() => new THREE.Quaternion(), []);
+  const axis = useMemo(() => new THREE.Vector3(0, 1, 0), []);
+  const p = useMemo(() => new THREE.Vector3(), []);
+  const one = useMemo(() => new THREE.Vector3(1, 1, 1), []);
+  useFrame(() => {
+    const g = ref.current;
+    if (!g) return;
+    const m = motion.current;
+    q.setFromAxisAngle(axis, m.rot);
+    p.set(m.x, 0, m.z);
+    pose.compose(p, q, one).invert();
+    g.matrix.copy(pose);
+    g.matrixWorldNeedsUpdate = true;
+  });
+  return (
+    <group ref={ref} matrixAutoUpdate={false}>
+      {children}
+    </group>
+  );
 }
 
 const RIDE = 0.1;
@@ -56,8 +127,7 @@ function useRig(model: ModelDef, paint: string, flip: boolean) {
 
 // ---------- the car ----------
 
-function Car({ rig, xray, exaggerate, motion }: { rig: CarRig; xray: boolean; exaggerate: number; motion: React.MutableRefObject<Motion> }) {
-  const yawG = useRef<THREE.Group>(null);
+function Car({ rig, xray, exaggerate }: { rig: CarRig; xray: boolean; exaggerate: number }) {
   const angles = useRef([0, 0, 0, 0]);
   const heat = useRef([0, 0, 0, 0]);
   // low-passed visual state: raw telemetry (keyboard steering, suspension noise) is too jumpy to show 1:1
@@ -79,14 +149,7 @@ function Car({ rig, xray, exaggerate, motion }: { rig: CarRig; xray: boolean; ex
   useFrame((_, dt) => {
     const f = store.frame;
     if (!f) return;
-    const m = motion.current;
     const d = Math.min(dt, 0.05);
-    const sp = Math.hypot(f.velocityX, f.velocityZ);
-    const target = sp > 2.5 ? Math.max(-1.3, Math.min(1.3, Math.atan2(f.velocityX, Math.max(0.5, f.velocityZ)))) : 0;
-    m.beta += (target - m.beta) * Math.min(1, d * 10);
-    m.speed = f.velocityZ < -0.5 ? -sp : sp;
-    m.gLat += (f.accelerationX / 9.81 - m.gLat) * Math.min(1, d * 6);
-    if (yawG.current) yawG.current.rotation.y = m.beta;
 
     const sm = smooth.current;
     const ease = (rate: number) => 1 - Math.exp(-rate * d);
@@ -134,7 +197,7 @@ function Car({ rig, xray, exaggerate, motion }: { rig: CarRig; xray: boolean; ex
   });
 
   return (
-    <group ref={yawG}>
+    <group>
       <primitive object={rig.root} />
       <Exhaust rig={rig} />
       {xray &&
@@ -207,46 +270,37 @@ function Exhaust({ rig }: { rig: CarRig }) {
 
 // ---------- road ----------
 
-function roadTexture() {
-  const c = document.createElement('canvas');
-  c.width = c.height = 512;
-  const g = c.getContext('2d')!;
-  g.fillStyle = '#0d0f14';
-  g.fillRect(0, 0, 512, 512);
-  for (let i = 0; i < 9000; i++) {
-    const v = 14 + Math.random() * 16;
-    g.fillStyle = `rgb(${v},${v + 1},${v + 4})`;
-    g.fillRect(Math.random() * 512, Math.random() * 512, 1.5, 1.5);
-  }
-  g.strokeStyle = 'rgba(255,255,255,0.06)';
-  g.lineWidth = 2;
-  g.strokeRect(0, 0, 512, 512);
-  g.strokeStyle = 'rgba(255,46,136,0.10)';
-  g.beginPath();
-  g.moveTo(256, 0);
-  g.lineTo(256, 512);
-  g.moveTo(0, 256);
-  g.lineTo(512, 256);
-  g.stroke();
-  const t = new THREE.CanvasTexture(c);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.repeat.set(28, 28);
-  t.anisotropy = 8;
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
+const ROAD = 240;
+/** metres covered by one repeat of the asphalt texture */
+const TILE = 3;
+
+function useAsphalt() {
+  return useMemo(() => {
+    const loader = new THREE.TextureLoader();
+    const load = (name: string, srgb: boolean) => {
+      const t = loader.load(`./textures/asphalt_${name}.jpg`);
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.repeat.set(ROAD / TILE, ROAD / TILE);
+      t.anisotropy = 16;
+      if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+      return t;
+    };
+    return { map: load('diff', true), normalMap: load('nor_gl', false), roughnessMap: load('rough', false) };
+  }, []);
 }
 
 function Road({ motion }: { motion: React.MutableRefObject<Motion> }) {
-  const tex = useMemo(roadTexture, []);
-  const SIZE = 160;
-  useFrame((_, dt) => {
-    // plane local +v points to world -z; lowering offset.y moves the pattern towards -z (backwards)
-    tex.offset.y -= (motion.current.speed * Math.min(dt, 0.05)) / (SIZE / tex.repeat.y);
+  const tex = useAsphalt();
+  const ref = useRef<THREE.Mesh>(null);
+  useFrame(() => {
+    // stays under the car but only moves in whole tiles, so the asphalt is fixed to the world
+    const m = motion.current;
+    ref.current?.position.set(Math.round(m.x / TILE) * TILE, 0, Math.round(m.z / TILE) * TILE);
   });
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-      <planeGeometry args={[SIZE, SIZE]} />
-      <meshStandardMaterial map={tex} color="#3c404b" roughness={1} metalness={0} envMapIntensity={0.15} />
+    <mesh ref={ref} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <planeGeometry args={[ROAD, ROAD]} />
+      <meshStandardMaterial {...tex} color="#707070" normalScale={new THREE.Vector2(0.8, 0.8)} roughness={1} metalness={0} envMapIntensity={0.6} />
     </mesh>
   );
 }
@@ -285,8 +339,6 @@ function Smoke({ rig, motion }: { rig: CarRig; motion: React.MutableRefObject<Mo
     const m = motion.current;
     const P = parts.current;
     if (f && f.isRaceOn) {
-      const cb = Math.cos(m.beta);
-      const sb = Math.sin(m.beta);
       for (let w = 0; w < 4; w++) {
         const slip = Math.abs(f.tireCombinedSlip[w]);
         if (slip < 1.1 || f.speed < 3) continue;
@@ -295,9 +347,9 @@ function Smoke({ rig, motion }: { rig: CarRig; motion: React.MutableRefObject<Mo
           acc.current -= 1;
           const p = P[next.current];
           next.current = (next.current + 1) % SMOKE;
-          const { x: lx, z: lz } = rig.wheelPos[w];
-          p.x = lx * cb + lz * sb + (Math.random() - 0.5) * 0.3;
-          p.z = -lx * sb + lz * cb + (Math.random() - 0.5) * 0.3;
+          const [wx, wz] = toWorld(m, rig.wheelPos[w].x, rig.wheelPos[w].z);
+          p.x = wx + (Math.random() - 0.5) * 0.3;
+          p.z = wz + (Math.random() - 0.5) * 0.3;
           p.y = 0.15;
           p.vx = (Math.random() - 0.5) * 1.2;
           p.vy = 0.4 + Math.random() * 0.6;
@@ -318,7 +370,6 @@ function Smoke({ rig, motion }: { rig: CarRig; motion: React.MutableRefObject<Mo
       p.life -= d;
       p.x += p.vx * d;
       p.y += p.vy * d;
-      p.z -= m.speed * 0.8 * d; // smoke hangs in the air while the car moves on
       const t = 1 - p.life / p.max;
       pos[i * 3] = p.x;
       pos[i * 3 + 1] = p.y;
@@ -352,31 +403,36 @@ function SkidMarks({ rig, motion }: { rig: CarRig; motion: React.MutableRefObjec
   }, []);
   const mat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#000', transparent: true, opacity: 0.5, depthWrite: false }), []);
   const markW = Math.min(0.3, rig.wheels[0].width || 0.25) * 0.8;
+  const epoch = useRef(0);
 
-  useFrame((_, dt) => {
+  useFrame(() => {
     const f = store.frame;
-    const d = Math.min(dt, 0.05);
     const m = motion.current;
     const D = data.current;
-    const shift = m.speed * d;
-    for (const s of D) s.z -= shift;
-    for (const p of prev.current) if (p) p.z -= shift;
-    const cb = Math.cos(m.beta);
-    const sb = Math.sin(m.beta);
+    if (m.epoch !== epoch.current) {
+      // the car teleported: old marks and open segments no longer connect
+      epoch.current = m.epoch;
+      for (const s of D) s.len = 0;
+      prev.current = [null, null, null, null];
+    }
     for (let w = 0; w < 4; w++) {
       const sliding = !!f && f.isRaceOn && f.speed > 2 && Math.abs(f.tireCombinedSlip[w]) >= 1.2;
       if (!sliding) {
         prev.current[w] = null;
         continue;
       }
-      const { x: lx, z: lz } = rig.wheelPos[w];
-      const cur = { x: lx * cb + lz * sb, z: -lx * sb + lz * cb };
+      const [cx, cz] = toWorld(m, rig.wheelPos[w].x, rig.wheelPos[w].z);
+      const cur = { x: cx, z: cz };
       const p = prev.current[w];
       if (p) {
         const dx = cur.x - p.x;
         const dz = cur.z - p.z;
         const len = Math.hypot(dx, dz);
         if (len < 0.15) continue;
+        if (len > 4) {
+          prev.current[w] = cur;
+          continue;
+        }
         const s = D[next.current];
         next.current = (next.current + 1) % MARKS;
         s.x = (cur.x + p.x) / 2;
@@ -390,7 +446,7 @@ function SkidMarks({ rig, motion }: { rig: CarRig; motion: React.MutableRefObjec
     if (!inst) return;
     for (let i = 0; i < MARKS; i++) {
       const s = D[i];
-      const visible = s.z > -45 && s.z < 45;
+      const visible = s.len > 0 && Math.abs(s.x - m.x) < 70 && Math.abs(s.z - m.z) < 70;
       dummy.position.set(s.x, 0.004, s.z);
       dummy.rotation.set(0, s.rot, 0);
       dummy.scale.set(visible ? markW : 0, 1, visible ? s.len : 0);
@@ -405,6 +461,8 @@ function SkidMarks({ rig, motion }: { rig: CarRig; motion: React.MutableRefObjec
 
 // ---------- camera ----------
 
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+
 function CameraRig({ mode, motion, length }: { mode: CameraMode; motion: React.MutableRefObject<Motion>; length: number }) {
   const { camera } = useThree();
   const cam = camera as THREE.PerspectiveCamera;
@@ -415,53 +473,72 @@ function CameraRig({ mode, motion, length }: { mode: CameraMode; motion: React.M
       cam.updateProjectionMatrix();
     }
   }, [mode, cam]);
+  const off = useMemo(() => new THREE.Vector3(), []);
+  const look = useMemo(() => new THREE.Vector3(), []);
   useFrame((_, dt) => {
     if (mode === 'orbit') return;
     const m = motion.current;
     const k = Math.min(1, Math.min(dt, 0.05) * 4);
-    const target = new THREE.Vector3();
     let fov = 40;
     if (mode === 'chase') {
-      // slightly off-centre so the car reads in three quarters, swaying with lateral g
-      target.set(-m.gLat * 0.5 + 1.1, 2.0, -length * 1.35);
+      // sit behind the direction of travel, so a drift shows the car sideways
+      off.set(1.1 - m.gLat * 0.5, 2.0, -length * 1.35).applyAxisAngle(Y_AXIS, m.travel * 0.75);
+      look.set(0, 0.6, length * 0.25).applyAxisAngle(Y_AXIS, m.travel * 0.75);
       fov = Math.min(62, 38 + Math.abs(m.speed) * 0.15);
     } else {
-      target.set(0, length * 2.6, -0.01);
+      // straight down, nose up: turns and slides read from the skid marks
+      off.set(0, length * 2.6, -0.01);
+      look.set(0, 0, 0);
     }
-    cam.position.lerp(target, k);
+    cam.position.lerp(off, k);
     cam.fov += (fov - cam.fov) * k;
     cam.updateProjectionMatrix();
-    cam.lookAt(0, mode === 'top' ? 0 : 0.6, mode === 'top' ? 0 : length * 0.25);
+    cam.lookAt(look);
   });
   return mode === 'orbit' ? <OrbitControls makeDefault target={[0, 0.55, 0]} enablePan={false} minDistance={3.5} maxDistance={16} maxPolarAngle={Math.PI / 2.05} /> : null;
 }
 
 export function CarScene({ model, paint, flip, xray, exaggerate, camera }: { model: ModelDef; paint: string; flip: boolean; xray: boolean; exaggerate: number; camera: CameraMode }) {
   const { rig, error } = useRig(model, paint, flip);
-  const motion = useRef<Motion>({ beta: 0, speed: 0, gLat: 0 });
+  const motion = useRef<Motion>(newMotion());
   return (
     <>
-      <Canvas shadows dpr={[1, 2]} camera={{ position: [1.1, 2.0, -6.1], fov: 40 }} gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.05 }}>
-        <color attach="background" args={['#0a0c11']} />
-        <fog attach="fog" args={['#0a0c11', 10, 34]} />
-        <ambientLight intensity={0.2} />
-        <directionalLight position={[5, 9, 4]} intensity={1.6} castShadow shadow-mapSize={[2048, 2048]} shadow-camera-left={-6} shadow-camera-right={6} shadow-camera-top={6} shadow-camera-bottom={-6} />
-        {rig && (
-          <>
-            <Car rig={rig} xray={xray} exaggerate={exaggerate} motion={motion} />
-            <SkidMarks rig={rig} motion={motion} />
-            <Smoke rig={rig} motion={motion} />
-          </>
-        )}
-        <Road motion={motion} />
-        <ContactShadows position={[0, 0.003, 0]} opacity={0.85} scale={12} blur={2} far={2} />
-        <Environment resolution={512}>
-          <Lightformer form="rect" intensity={4} position={[0, 6, 0]} rotation-x={Math.PI / 2} scale={[14, 6, 1]} />
-          <Lightformer form="rect" intensity={1.6} position={[0, 2, 9]} scale={[12, 3, 1]} />
-          <Lightformer form="rect" intensity={2.4} color="#ff2e88" position={[-8, 1.5, 0]} rotation-y={Math.PI / 2} scale={[12, 2.5, 1]} />
-          <Lightformer form="rect" intensity={2.4} color="#2de2e6" position={[8, 1.5, 0]} rotation-y={-Math.PI / 2} scale={[12, 2.5, 1]} />
-          <Lightformer form="ring" intensity={2} position={[0, 3, -9]} scale={4} />
-        </Environment>
+      <Canvas
+        shadows="soft"
+        dpr={[1, 2]}
+        camera={{ position: [1.1, 2.0, -6.1], fov: 40, far: 2000 }}
+        gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 0.95 }}
+      >
+        {/* haze that matches the horizon so the road melts into the sky */}
+        <fog attach="fog" args={['#b9c6d3', 40, 150]} />
+        <Suspense fallback={null}>
+          <Environment files="./env/sky.hdr" background backgroundBlurriness={0.02} environmentIntensity={1} backgroundIntensity={1} />
+        </Suspense>
+        {/* the sun: matches the HDRI's key light, gives crisp shadows under the car */}
+        <directionalLight
+          position={[-6, 12, 5]}
+          intensity={2.6}
+          color="#fff4e2"
+          castShadow
+          shadow-mapSize={[2048, 2048]}
+          shadow-bias={-0.0004}
+          shadow-camera-left={-7}
+          shadow-camera-right={7}
+          shadow-camera-top={7}
+          shadow-camera-bottom={-7}
+        />
+        <PoseTracker motion={motion} />
+        {rig && <Car rig={rig} xray={xray} exaggerate={exaggerate} />}
+        <Ground motion={motion}>
+          <Road motion={motion} />
+          {rig && (
+            <>
+              <SkidMarks rig={rig} motion={motion} />
+              <Smoke rig={rig} motion={motion} />
+            </>
+          )}
+        </Ground>
+        <ContactShadows position={[0, 0.004, 0]} opacity={0.75} scale={10} blur={2.4} far={1.6} color="#000" />
         <CameraRig mode={camera} motion={motion} length={rig?.length ?? 4.5} />
       </Canvas>
       {!rig && !error && (
