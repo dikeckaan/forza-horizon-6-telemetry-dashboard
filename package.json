@@ -88,10 +88,12 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "artifactName": "FH-Telemetry-${version}-windows-${arch}-setup.${ext}"
+      "artifactName": "FH-Telemetry-${version}-windows-${arch}-setup.${ext}",
+      "buildUniversalInstaller": false
     },
     "portable": {
-      "artifactName": "FH-Telemetry-${version}-windows-${arch}-portable.${ext}"
+      "artifactName": "FH-Telemetry-${version}-windows-${arch}-portable.${ext}",
+      "buildUniversalInstaller": false
     }
   },
   "devDependencies": {

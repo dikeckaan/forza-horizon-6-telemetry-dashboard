@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import { useFrame, useSettings, useStatus } from '../hooks';
 import type { UnitPrefs } from '../../shared/units';
 import { carCount, knownCarName } from '../../shared/cars';
+import { LANGUAGES, t } from '../i18n';
 
 export function SettingsPage() {
   const { settings, update } = useSettings();
@@ -21,14 +22,28 @@ export function SettingsPage() {
 
   return (
     <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', alignItems: 'start' }}>
-      <Section title="Bağlantı">
-        <Row label="UDP port" hint="Oyundaki “Veri Çıkışı IP Portu” ile aynı olmalı">
+      <Section title={t('settings.connection')}>
+        <Row label={t('settings.language')}>
+          <select
+            value={settings.language}
+            onChange={(e) => update({ language: e.target.value })}
+            style={{ height: 34, borderRadius: 9, background: 'rgba(0,0,0,.35)', color: 'var(--ink)', border: '1px solid var(--line-2)', padding: '0 10px', font: 'inherit' }}
+          >
+            <option value="auto">{t('settings.languageAuto')}</option>
+            {LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.name}
+              </option>
+            ))}
+          </select>
+        </Row>
+        <Row label={t('settings.udpPort')} hint={t('settings.udpPortHint')}>
           <input type="number" value={port} onChange={(e) => setPort(e.target.value)} style={{ width: 110 }} />
           <button className="btn" disabled={Number(port) === settings.port || !(Number(port) > 0 && Number(port) < 65536)} onClick={() => update({ port: Number(port) })}>
-            Uygula
+            {t('settings.apply')}
           </button>
         </Row>
-        <Row label="Bu bilgisayarın IP’leri" hint="Oyunda “Veri Çıkışı IP Adresi” olarak bunlardan birini gir">
+        <Row label={t('settings.localIps')} hint={t('settings.localIpsHint')}>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {(status?.localAddresses ?? []).map((a) => (
               <span key={a} className="kbd">
@@ -37,26 +52,32 @@ export function SettingsPage() {
             ))}
           </div>
         </Row>
-        <Row label="Durum">
+        <Row label={t('settings.status')}>
           <span className="mono">
-            {status?.error ? <span style={{ color: 'var(--bad)' }}>{status.error}</span> : status?.listening ? `dinleniyor · ${status.packetsPerSec} paket/sn · ${status.packetSize || '—'} byte` : 'kapalı'}
+            {status?.error ? (
+              <span style={{ color: 'var(--bad)' }}>{status.error}</span>
+            ) : status?.listening ? (
+              t('settings.statusListening', { pps: status.packetsPerSec, size: status.packetSize || '—' })
+            ) : (
+              t('settings.statusOff')
+            )}
           </span>
         </Row>
-        <Row label="Demo modu" hint="Oyun kapalıyken sahte bir sürüşle arayüzü dene">
-          <button className={`toggle ${settings.demo ? 'on' : ''}`} onClick={() => update({ demo: !settings.demo })} aria-label="Demo modu" />
+        <Row label={t('settings.demo')} hint={t('settings.demoHint')}>
+          <button className={`toggle ${settings.demo ? 'on' : ''}`} onClick={() => update({ demo: !settings.demo })} aria-label={t('settings.demo')} />
         </Row>
       </Section>
 
       {desktop && (
-      <Section title="Kayıt">
-        <Row label="Otomatik kayıt" hint="Sürüşler .fhs dosyası olarak saklanır (~1.2 MB/dk)">
-          <button className={`toggle ${settings.record ? 'on' : ''}`} onClick={() => update({ record: !settings.record })} aria-label="Otomatik kayıt" />
+      <Section title={t('settings.recording')}>
+        <Row label={t('settings.autoRecord')} hint={t('settings.autoRecordHint')}>
+          <button className={`toggle ${settings.record ? 'on' : ''}`} onClick={() => update({ record: !settings.record })} aria-label={t('settings.autoRecord')} />
         </Row>
-        <Row label="UDP yönlendirme" hint="Gelen paketleri başka bir uygulamaya da gönder (ör. SimHub)">
-          <button className={`toggle ${settings.forward.enabled ? 'on' : ''}`} onClick={() => update({ forward: { ...settings.forward, enabled: !settings.forward.enabled } })} aria-label="UDP yönlendirme" />
+        <Row label={t('settings.forward')} hint={t('settings.forwardHint')}>
+          <button className={`toggle ${settings.forward.enabled ? 'on' : ''}`} onClick={() => update({ forward: { ...settings.forward, enabled: !settings.forward.enabled } })} aria-label={t('settings.forward')} />
         </Row>
         {settings.forward.enabled && (
-          <Row label="Hedef">
+          <Row label={t('settings.forwardTarget')}>
             <input type="text" value={fwdHost} onChange={(e) => setFwdHost(e.target.value)} style={{ width: 150 }} />
             <input type="number" value={fwdPort} onChange={(e) => setFwdPort(e.target.value)} style={{ width: 90 }} />
             <button
@@ -64,7 +85,7 @@ export function SettingsPage() {
               disabled={Number(fwdPort) === settings.forward.port && fwdHost === settings.forward.host}
               onClick={() => update({ forward: { ...settings.forward, host: fwdHost.trim(), port: Number(fwdPort) } })}
             >
-              Uygula
+              {t('settings.apply')}
             </button>
           </Row>
         )}
@@ -72,13 +93,12 @@ export function SettingsPage() {
       )}
 
       {library && (
-      <Section title="3D araç modelleri (Sketchfab)">
+      <Section title={t('settings.models')}>
         <p className="muted" style={{ marginTop: 0, lineHeight: 1.5 }}>
-          Sürdüğün aracın gerçek 3D modeli Sketchfab’dan bulunup indirilir. İndirmek için ücretsiz bir Sketchfab hesabının API anahtarı gerekir
-          (sketchfab.com › Settings › Password &amp; API). Anahtar bu bilgisayarda şifreli saklanır.
+          {t('settings.modelsIntro')}
         </p>
         {settings.sketchfab.connected ? (
-          <Row label="Hesap" hint="Bağlı">
+          <Row label={t('settings.account')} hint={t('settings.connected')}>
             <span>{settings.sketchfab.account}</span>
             <button
               className="btn ghost danger"
@@ -87,11 +107,11 @@ export function SettingsPage() {
                 if (next) update({ sketchfab: next.sketchfab });
               }}
             >
-              Bağlantıyı kes
+              {t('settings.disconnect')}
             </button>
           </Row>
         ) : (
-          <Row label="API anahtarı">
+          <Row label={t('settings.apiToken')}>
             <input type="text" value={sfToken} onChange={(e) => setSfToken(e.target.value)} placeholder="token" style={{ width: 200 }} />
             <button
               className="btn"
@@ -103,19 +123,19 @@ export function SettingsPage() {
                   update({ sketchfab: next.sketchfab });
                   setSfToken('');
                 } catch {
-                  setSfErr('Anahtar doğrulanamadı');
+                  setSfErr(t('settings.tokenInvalid'));
                 }
               }}
             >
-              Bağla
+              {t('settings.connect')}
             </button>
           </Row>
         )}
         {sfErr && <div style={{ color: 'var(--bad)', padding: '4px 0' }}>{sfErr}</div>}
-        <Row label="Otomatik indir" hint="Yeni bir araca bindiğinde en uygun modeli kendisi bulup indirir">
-          <button className={`toggle ${settings.autoModels ? 'on' : ''}`} onClick={() => update({ autoModels: !settings.autoModels })} aria-label="Otomatik indir" />
+        <Row label={t('settings.autoDownload')} hint={t('settings.autoDownloadHint')}>
+          <button className={`toggle ${settings.autoModels ? 'on' : ''}`} onClick={() => update({ autoModels: !settings.autoModels })} aria-label={t('settings.autoDownload')} />
         </Row>
-        <Row label="İndirilen modeller">
+        <Row label={t('settings.downloadedModels')}>
           <span className="mono">{settings.customModels.filter((m) => m.source === 'sketchfab').length}</span>
         </Row>
       </Section>
@@ -123,31 +143,31 @@ export function SettingsPage() {
 
       {desktop && <RemoteSection />}
 
-      <Section title="Birimler">
-        <Row label="Hız">
+      <Section title={t('settings.units')}>
+        <Row label={t('settings.unitSpeed')}>
           <Seg value={units.speed} options={[['kmh', 'km/h'], ['mph', 'mph']]} onChange={(v) => setUnit('speed', v)} />
         </Row>
-        <Row label="Sıcaklık">
+        <Row label={t('settings.unitTemp')}>
           <Seg value={units.temp} options={[['c', '°C'], ['f', '°F']]} onChange={(v) => setUnit('temp', v)} />
         </Row>
-        <Row label="Güç">
+        <Row label={t('settings.unitPower')}>
           <Seg value={units.power} options={[['hp', 'hp'], ['kw', 'kW']]} onChange={(v) => setUnit('power', v)} />
         </Row>
-        <Row label="Tork">
+        <Row label={t('settings.unitTorque')}>
           <Seg value={units.torque} options={[['nm', 'Nm'], ['lbft', 'lb·ft']]} onChange={(v) => setUnit('torque', v)} />
         </Row>
-        <Row label="Basınç">
+        <Row label={t('settings.unitPressure')}>
           <Seg value={units.pressure} options={[['bar', 'bar'], ['psi', 'psi']]} onChange={(v) => setUnit('pressure', v)} />
         </Row>
       </Section>
 
-      <Section title="Araç isimleri">
+      <Section title={t('settings.carNames')}>
         <p className="muted" style={{ marginTop: 0, lineHeight: 1.5 }}>
-          Oyun yalnızca araç numarasını gönderir; {carCount} FH6 aracının adı uygulamada kayıtlı. Listede olmayan ya da farklı görünmesini istediğin araçlara isim verebilirsin.
+          {t('settings.carNamesIntro', { count: carCount })}
         </p>
         {f.carOrdinal > 0 && (
-          <Row label={`Şu anki araç #${f.carOrdinal}`}>
-            <input type="text" placeholder={settings.carNames[String(f.carOrdinal)] ?? knownCarName(f.carOrdinal) ?? 'ör. Toyota GR Yaris'} value={carName} onChange={(e) => setCarName(e.target.value)} style={{ width: 200 }} />
+          <Row label={t('settings.currentCar', { id: f.carOrdinal })}>
+            <input type="text" placeholder={settings.carNames[String(f.carOrdinal)] ?? knownCarName(f.carOrdinal) ?? t('settings.carNamePlaceholder')} value={carName} onChange={(e) => setCarName(e.target.value)} style={{ width: 200 }} />
             <button
               className="btn"
               disabled={!carName.trim()}
@@ -156,7 +176,7 @@ export function SettingsPage() {
                 setCarName('');
               }}
             >
-              Kaydet
+              {t('settings.save')}
             </button>
           </Row>
         )}
@@ -171,18 +191,18 @@ export function SettingsPage() {
                 update({ carNames: next });
               }}
             >
-              Kaldır
+              {t('settings.remove')}
             </button>
           </Row>
         ))}
       </Section>
 
-      <Section title="Kısayollar">
-        <Row label="Ekranlar">
+      <Section title={t('settings.shortcuts')}>
+        <Row label={t('settings.shortcutPages')}>
           <span className="kbd">1</span>–<span className="kbd">8</span>
         </Row>
-        <Row label="Kayıt oynat / duraklat">
-          <span className="kbd">Boşluk</span>
+        <Row label={t('settings.shortcutReplay')}>
+          <span className="kbd">{t('settings.keySpace')}</span>
         </Row>
       </Section>
     </div>
@@ -230,7 +250,7 @@ function RemoteSection() {
   const status = useStatus();
   const [qr, setQr] = useState<string | null>(null);
   const r = settings.remote;
-  const urls = (status?.localAddresses ?? []).map((a) => `http://${a}:${r.port}/`);
+  const urls = (status?.localAddresses ?? []).map((a) => `http://${a}:${r.port}/?k=${r.key}`);
   const [port, setPort] = useState(String(r.port));
   useEffect(() => {
     if (!r.enabled || !urls[0]) {
@@ -241,17 +261,17 @@ function RemoteSection() {
   }, [r.enabled, urls[0]]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <Section title="Telefon / tablet ekranı">
+    <Section title={t('settings.remote')}>
       <p className="muted" style={{ marginTop: 0, lineHeight: 1.5 }}>
-        Aynı Wi-Fi’daki telefon, iPad ya da başka bir bilgisayar tarayıcıdan bu adrese girerek paneli ikinci ekran olarak kullanabilir. Kurulum gerekmez; kayıtlar ve indirilen 3D modeller de görünür.
+        {t('settings.remoteIntro')}
       </p>
-      <Row label="Yayını aç" hint="Yerel ağdaki herkes erişebilir; yalnızca güvendiğin ağlarda aç">
-        <button className={`toggle ${r.enabled ? 'on' : ''}`} onClick={() => update({ remote: { ...r, enabled: !r.enabled } })} aria-label="Yayını aç" />
+      <Row label={t('settings.remoteEnable')} hint={t('settings.remoteEnableHint')}>
+        <button className={`toggle ${r.enabled ? 'on' : ''}`} onClick={() => update({ remote: { ...r, enabled: !r.enabled } })} aria-label={t('settings.remoteEnable')} />
       </Row>
-      <Row label="Port">
+      <Row label={t('settings.port')}>
         <input type="number" value={port} onChange={(e) => setPort(e.target.value)} style={{ width: 110 }} />
         <button className="btn" disabled={Number(port) === r.port || !(Number(port) > 1024 && Number(port) < 65536)} onClick={() => update({ remote: { ...r, port: Number(port) } })}>
-          Uygula
+          {t('settings.apply')}
         </button>
       </Row>
       {r.enabled && (
@@ -262,7 +282,7 @@ function RemoteSection() {
               <span style={{ color: 'var(--bad)' }}>{status.remote.error}</span>
             ) : (
               <span className="muted">
-                {status?.remote.clients ?? 0} cihaz bağlı · telefon kamerasıyla QR’ı okut
+                {t('settings.remoteClients', { count: status?.remote.clients ?? 0 })}
               </span>
             )}
             {urls.map((u) => (

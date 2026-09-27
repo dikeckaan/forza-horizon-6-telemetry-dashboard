@@ -2,6 +2,7 @@ import { useId } from 'react';
 import type { Frame } from '../../shared/packet';
 import { gearLabel, speedLabel, speedOf, type UnitPrefs } from '../../shared/units';
 import { store } from '../store';
+import { locale, t } from '../i18n';
 
 const polar = (cx: number, cy: number, r: number, deg: number): [number, number] => {
   const a = ((deg - 90) * Math.PI) / 180;
@@ -139,7 +140,7 @@ export function Tachometer({ f, units, size = 460 }: { f: Frame; units: UnitPref
 
       {/* readouts */}
       <text x={c} y={c - 70} textAnchor="middle" fill="#6b7285" fontSize={11} fontWeight={600} letterSpacing="0.24em">
-        RPM × 1000
+        {t('cockpit.rpmX1000')}
       </text>
       <g transform={`translate(${c}, ${c + 70})`}>
         <rect x={-46} y={-60} width={92} height={84} rx={16} fill="rgba(0,0,0,0.55)" stroke={shift ? '#ff3b4e' : 'rgba(255,255,255,0.12)'} strokeWidth={shift ? 2.5 : 1} style={shift ? { filter: 'drop-shadow(0 0 10px #ff3b4e)' } : undefined} />
@@ -154,11 +155,11 @@ export function Tachometer({ f, units, size = 460 }: { f: Frame; units: UnitPref
         </tspan>
       </text>
       <text x={c} y={c + 166} textAnchor="middle" className="mono" fill="#8d95a8" fontSize={13}>
-        {Math.round(f.currentEngineRpm).toLocaleString('tr-TR')} rpm
+        {Math.round(f.currentEngineRpm).toLocaleString(locale())} rpm
       </text>
       {blink && (
         <text x={c} y={c - 30} textAnchor="middle" className="num" fontWeight={700} fontSize={26} letterSpacing="0.3em" fill="#ff3b4e" style={{ filter: 'drop-shadow(0 0 8px #ff3b4e)' }}>
-          SHIFT
+          {t('cockpit.shift')}
         </text>
       )}
     </svg>
@@ -231,10 +232,10 @@ export function LedBar({ value, color, label, segments = 22, height = 190 }: { v
 export function Pedals({ f }: { f: Frame }) {
   return (
     <div style={{ display: 'flex', gap: 10 }}>
-      <LedBar value={f.clutch / 2.55} color="#4d8dff" label="Debr." />
-      <LedBar value={f.brake / 2.55} color="#ff3b4e" label="Fren" />
-      <LedBar value={f.accel / 2.55} color="#3bdc84" label="Gaz" />
-      <LedBar value={f.handBrake / 2.55} color="#ffc53d" label="El F." />
+      <LedBar value={f.clutch / 2.55} color="#4d8dff" label={t('cockpit.clutchShort')} />
+      <LedBar value={f.brake / 2.55} color="#ff3b4e" label={t('cockpit.brake')} />
+      <LedBar value={f.accel / 2.55} color="#3bdc84" label={t('cockpit.throttle')} />
+      <LedBar value={f.handBrake / 2.55} color="#ffc53d" label={t('cockpit.handbrakeShort')} />
     </div>
   );
 }
@@ -283,7 +284,7 @@ export function SteeringWheel({ steer, size = 170 }: { steer: number; size?: num
         <div style={{ position: 'absolute', left: '50%', top: -3, bottom: -3, width: 1, background: '#6b7285' }} />
       </div>
       <span className="mono muted" style={{ fontSize: 12 }}>
-        {steer > 0 ? 'SAĞ ' : steer < 0 ? 'SOL ' : ''}
+        {steer > 0 ? `${t('cockpit.right')} ` : steer < 0 ? `${t('cockpit.left')} ` : ''}
         {Math.round(Math.abs(steer / 127) * 100)}%
       </span>
     </div>
@@ -317,18 +318,18 @@ export function GCircle({ size = 230, maxG = 2 }: { size?: number; maxG?: number
           1g
         </text>
         <text x={c} y={12} textAnchor="middle" fill="#6b7285" fontSize={9} letterSpacing=".1em">
-          HIZLANMA
+          {t('cockpit.accelUp')}
         </text>
         <text x={c} y={size - 4} textAnchor="middle" fill="#6b7285" fontSize={9} letterSpacing=".1em">
-          FREN
+          {t('cockpit.brakeDown')}
         </text>
         <polyline points={pts} fill="none" stroke="#ff2e88" strokeOpacity={0.45} strokeWidth={2} strokeLinejoin="round" />
         <circle cx={c + px(cur.lat)} cy={c - px(cur.long)} r={9} fill="#ff2e88" stroke="#0e1016" strokeWidth={2} style={{ filter: 'drop-shadow(0 0 8px #ff2e88)' }} />
       </svg>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }} className="mono">
-        <span className="muted">Y {cur.lat.toFixed(2)}</span>
+        <span className="muted">{t('cockpit.latShort')} {cur.lat.toFixed(2)}</span>
         <span>{total.toFixed(2)} g</span>
-        <span className="muted">B {cur.long.toFixed(2)}</span>
+        <span className="muted">{t('cockpit.longShort')} {cur.long.toFixed(2)}</span>
       </div>
     </div>
   );

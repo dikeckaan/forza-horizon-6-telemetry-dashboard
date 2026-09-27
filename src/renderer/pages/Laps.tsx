@@ -5,6 +5,7 @@ import { fmtDelta, fmtLap, speedLabel, speedOf } from '../../shared/units';
 import { timeAtDistance, type Lap } from '../../shared/laps';
 import { StaticChart } from '../components/StaticChart';
 import { TrackCanvas } from '../components/TrackCanvas';
+import { t } from '../i18n';
 
 const A = '#1a9fb0';
 const B = '#f03a7e';
@@ -32,10 +33,10 @@ export function LapsPage() {
     return (
       <div className="panel empty" style={{ minHeight: 400 }}>
         <div>
-          <h3>Henüz tur yok</h3>
-          Pist yarışlarında turlar, sprint yarışlarında ilerleme ve en iyi koşu karşılaştırması burada görünür.
+          <h3>{t('laps.empty.title')}</h3>
+          {t('laps.empty.body')}
           <br />
-          Serbest sürüşte oyun tur/mesafe verisi göndermez — sürüşünü <b>Harita</b> ve <b>Grafikler</b> ekranlarında izleyebilirsin.
+          {t('laps.empty.freeRoam')}
         </div>
       </div>
     );
@@ -46,10 +47,10 @@ export function LapsPage() {
   return (
     <div className="grid">
       <div className="grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
-        <Big label={`Tur ${f.lapNumber + 1}`} value={fmtLap(f.currentLap)} />
-        <Big label="Delta (en iyiye göre)" value={isNaN(delta) ? '—' : fmtDelta(delta)} color={isNaN(delta) ? undefined : delta <= 0 ? 'var(--good)' : 'var(--bad)'} />
-        <Big label="En iyi" value={fmtLap(best?.time ?? f.bestLap)} color="#b36bff" />
-        <Big label="Son" value={fmtLap(f.lastLap)} />
+        <Big label={t('laps.lapN', { n: f.lapNumber + 1 })} value={fmtLap(f.currentLap)} />
+        <Big label={t('laps.deltaToBest')} value={isNaN(delta) ? '—' : fmtDelta(delta)} color={isNaN(delta) ? undefined : delta <= 0 ? 'var(--good)' : 'var(--bad)'} />
+        <Big label={t('laps.best')} value={fmtLap(best?.time ?? f.bestLap)} color="#b36bff" />
+        <Big label={t('laps.last')} value={fmtLap(f.lastLap)} />
       </div>
 
       <div className="grid" style={{ gridTemplateColumns: 'minmax(360px, 460px) 1fr' }}>
@@ -58,9 +59,9 @@ export function LapsPage() {
             <thead>
               <tr>
                 <th style={{ width: 34 }} />
-                <th>Tur</th>
-                <th className="r">Süre</th>
-                <th className="r">Fark</th>
+                <th>{t('laps.col.lap')}</th>
+                <th className="r">{t('laps.col.time')}</th>
+                <th className="r">{t('laps.col.gap')}</th>
                 <th className="r">Vmax</th>
               </tr>
             </thead>
@@ -79,7 +80,7 @@ export function LapsPage() {
                     <td className="r mono" style={{ color: isBest ? '#b36bff' : undefined, fontWeight: isBest ? 700 : 400 }}>
                       {fmtLap(l.time)}
                     </td>
-                    <td className="r mono muted">{best && !isBest ? fmtDelta(l.time - best.time) : isBest ? 'EN İYİ' : ''}</td>
+                    <td className="r mono muted">{best && !isBest ? fmtDelta(l.time - best.time) : isBest ? t('laps.bestBadge') : ''}</td>
                     <td className="r mono">
                       {Math.round(speedOf(l.maxSpeed, u))} <span className="muted">{speedLabel(u)}</span>
                     </td>
@@ -89,7 +90,7 @@ export function LapsPage() {
               {!laps.length && (
                 <tr>
                   <td colSpan={5} className="muted" style={{ padding: 20 }}>
-                    İlk tur tamamlanınca burada görünecek.
+                    {t('laps.firstLapPending')}
                   </td>
                 </tr>
               )}
@@ -98,7 +99,7 @@ export function LapsPage() {
         </div>
         <div className="panel" style={{ padding: 0, overflow: 'hidden', minHeight: 320 }}>
           <div style={{ position: 'absolute', top: 12, left: 14, zIndex: 1 }} className="panel-title">
-            {selected.length ? `Çizgi · ${selected.map((l) => `Tur ${l.number + 1}`).join(' vs ')}` : 'Karşılaştırmak için soldan 1–2 tur seç'}
+            {selected.length ? `${t('laps.line')} · ${selected.map((l) => t('laps.lapN', { n: l.number + 1 })).join(' vs ')}` : t('laps.pickToCompare')}
           </div>
           <TrackCanvas
             key={selected.map((l) => l.number).join(',')}
@@ -151,15 +152,15 @@ function Comparison({ laps, names }: { laps: Lap[]; names?: string[] }) {
     return { x, series, delta };
   }, [laps, u]);
 
-  const name = (l: Lap) => names?.[laps.indexOf(l)] ?? `Tur ${l.number + 1}`;
+  const name = (l: Lap) => names?.[laps.indexOf(l)] ?? t('laps.lapN', { n: l.number + 1 });
   return (
     <div className="grid">
-      <StaticChart title="Hız" unit={speedLabel(u)} x={data.x} series={data.series.map((s) => ({ label: name(s.l), color: s.color, data: s.speed }))} height={200} />
+      <StaticChart title={t('laps.chart.speed')} unit={speedLabel(u)} x={data.x} series={data.series.map((s) => ({ label: name(s.l), color: s.color, data: s.speed }))} height={200} />
       {data.delta && (
-        <StaticChart title="Zaman farkı" unit={`sn (${name(laps[1])} − ${name(laps[0])})`} x={data.x} series={[{ label: 'Δ', color: '#c47f1c', data: data.delta }]} digits={3} height={130} />
+        <StaticChart title={t('laps.chart.timeGap')} unit={t('laps.chart.timeGapUnit', { b: name(laps[1]), a: name(laps[0]) })} x={data.x} series={[{ label: 'Δ', color: '#c47f1c', data: data.delta }]} digits={3} height={130} />
       )}
       <StaticChart
-        title="Gaz"
+        title={t('laps.chart.throttle')}
         unit="%"
         x={data.x}
         series={data.series.map((s) => ({ label: name(s.l), color: s.color, data: s.thr }))}
@@ -167,14 +168,14 @@ function Comparison({ laps, names }: { laps: Lap[]; names?: string[] }) {
         height={120}
       />
       <StaticChart
-        title="Fren"
+        title={t('laps.chart.brake')}
         unit="%"
         x={data.x}
         series={data.series.map((s) => ({ label: name(s.l), color: s.color, data: s.brk }))}
         range={[0, 102]}
         height={120}
       />
-      <StaticChart title="Vites" x={data.x} series={data.series.map((s) => ({ label: name(s.l), color: s.color, data: s.gear }))} height={100} />
+      <StaticChart title={t('laps.chart.gear')} x={data.x} series={data.series.map((s) => ({ label: name(s.l), color: s.color, data: s.gear }))} height={100} />
     </div>
   );
 }
@@ -213,24 +214,24 @@ function SprintView() {
   return (
     <div className="grid">
       <div className="grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
-        <Big label="Pozisyon" value={f.racePosition ? `P${f.racePosition}` : '—'} />
-        <Big label="Yarış süresi" value={fmtLap(f.currentRaceTime)} />
-        <Big label="İlerleme" value={progress !== null ? `${(progress * 100).toFixed(1)}%` : ev.routeKey ? 'öğreniliyor' : '—'} />
-        <Big label="En iyi koşuya göre" value={isNaN(delta) ? '—' : fmtDelta(delta)} color={isNaN(delta) ? undefined : delta <= 0 ? 'var(--good)' : 'var(--bad)'} />
-        <Big label="En iyi koşu" value={route?.bestTime ? fmtLap(route.bestTime) : '—'} color="#b36bff" />
+        <Big label={t('laps.position')} value={f.racePosition ? `P${f.racePosition}` : '—'} />
+        <Big label={t('laps.raceTime')} value={fmtLap(f.currentRaceTime)} />
+        <Big label={t('laps.progress')} value={progress !== null ? `${(progress * 100).toFixed(1)}%` : ev.routeKey ? t('laps.learning') : '—'} />
+        <Big label={t('laps.vsBestRun')} value={isNaN(delta) ? '—' : fmtDelta(delta)} color={isNaN(delta) ? undefined : delta <= 0 ? 'var(--good)' : 'var(--bad)'} />
+        <Big label={t('laps.bestRun')} value={route?.bestTime ? fmtLap(route.bestTime) : '—'} color="#b36bff" />
       </div>
       <div className="grid" style={{ gridTemplateColumns: 'minmax(300px, 380px) 1fr' }}>
         <div className="panel">
           <div className="panel-title" style={{ marginBottom: 10 }}>
-            Bu yarış
+            {t('laps.thisRace')}
           </div>
           {[
-            ['Mesafe', `${(f.distanceTraveled / 1000).toFixed(2)} km`],
-            ['Rota uzunluğu', route ? `${(route.distance / 1000).toFixed(2)} km` : ev.routeKey ? 'ilk koşu — bitirince öğrenilir' : 'tanınamadı'],
-            ['Bu rotada koşu', route ? String(route.runs) : '0'],
-            ['En iyi pozisyon', ev.bestPosition < 99 ? `P${ev.bestPosition}` : '—'],
-            ['Geri sarma', String(ev.rewinds)],
-            ['Ort. hız', ev.time > 0 ? `${Math.round(speedOf(f.distanceTraveled / ev.time, u))} ${speedLabel(u)}` : '—'],
+            [t('laps.distance'), `${(f.distanceTraveled / 1000).toFixed(2)} km`],
+            [t('laps.routeLength'), route ? `${(route.distance / 1000).toFixed(2)} km` : ev.routeKey ? t('laps.routeLearnedAtFinish') : t('laps.routeUnknown')],
+            [t('laps.runsOnRoute'), route ? String(route.runs) : '0'],
+            [t('laps.bestPosition'), ev.bestPosition < 99 ? `P${ev.bestPosition}` : '—'],
+            [t('laps.rewinds'), String(ev.rewinds)],
+            [t('laps.avgSpeed'), ev.time > 0 ? `${Math.round(speedOf(f.distanceTraveled / ev.time, u))} ${speedLabel(u)}` : '—'],
           ].map(([k, v]) => (
             <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderTop: '1px solid var(--line)' }}>
               <span className="muted">{k}</span>
@@ -239,13 +240,13 @@ function SprintView() {
           ))}
           {!ev.routeKey && (
             <p className="muted" style={{ fontSize: 11.5, lineHeight: 1.5, marginBottom: 0 }}>
-              Uygulama yarışın başını görmediği için bu rota tanınamadı. Sonraki yarışlar baştan itibaren takip edilir.
+              {t('laps.routeNotRecognized')}
             </p>
           )}
         </div>
         <div className="panel" style={{ padding: 0, overflow: 'hidden', minHeight: 300 }}>
           <div style={{ position: 'absolute', top: 12, left: 14, zIndex: 1 }} className="panel-title">
-            {runs.length > 1 ? 'Çizgi · en iyi koşu vs şimdi' : 'Çizgi'}
+            {runs.length > 1 ? t('laps.lineBestVsNow') : t('laps.line')}
           </div>
           <TrackCanvas
             key={runs.length}
@@ -255,7 +256,7 @@ function SprintView() {
           />
         </div>
       </div>
-      {runs[runs.length - 1].samples.length > 2 && <Comparison laps={runs} names={runs.length > 1 ? ['En iyi koşu', 'Şimdi'] : ['Şimdi']} />}
+      {runs[runs.length - 1].samples.length > 2 && <Comparison laps={runs} names={runs.length > 1 ? [t('laps.bestRun'), t('laps.now')] : [t('laps.now')]} />}
     </div>
   );
 }

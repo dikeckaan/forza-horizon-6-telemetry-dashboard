@@ -1,5 +1,6 @@
 import type { Frame } from '../../../shared/packet';
 import type { Settings } from '../../../shared/ipc';
+import { t } from '../../i18n';
 
 export interface ModelDef {
   id: string;
@@ -14,8 +15,21 @@ export interface ModelDef {
 }
 
 export const BUILTIN_MODELS: ModelDef[] = [
-  { id: 'italian-v8', label: 'İtalyan V8 süper spor', url: './models/italian-v8.glb' },
-  { id: 'concept-gt', label: 'Konsept GT', url: './models/concept-gt.glb' },
+  // getters: the label follows the current UI language
+  {
+    id: 'italian-v8',
+    get label() {
+      return t('car.model.italianV8');
+    },
+    url: './models/italian-v8.glb',
+  },
+  {
+    id: 'concept-gt',
+    get label() {
+      return t('car.model.conceptGt');
+    },
+    url: './models/concept-gt.glb',
+  },
 ];
 
 export const PAINTS = ['#c8102e', '#e0145f', '#ff6a13', '#f4c20d', '#7ac70c', '#0fb5c4', '#1f5fd6', '#1b2a4a', '#e8e8ea', '#9aa3b5', '#101014', '#6b2bd9'];

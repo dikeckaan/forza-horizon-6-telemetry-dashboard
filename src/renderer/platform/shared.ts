@@ -1,6 +1,8 @@
 import type { BridgeCaps, FhBridge, Settings, Status } from '../../shared/ipc';
+import { t, type Key } from '../i18n';
 
-export const notHere = (what = 'Bu işlem') => () => Promise.reject(new Error(`${what} yalnızca masaüstü uygulamasında yapılabilir`));
+/** rejects with "<operation> is only available in the desktop app", localized when it happens */
+export const notHere = (what: Key = 'platform.opThis') => () => Promise.reject(new Error(t('platform.desktopOnly', { what: t(what) })));
 
 export const emptyStatus = (): Status => ({
   listening: false,

@@ -33,6 +33,7 @@ Tachometer, live 3D car with real car models, track map, charts, lap & sprint ti
 - **Race & laps** — lap table, live delta to best lap, lap overlay; **sprint races** with position, % progress (route length is learned) and delta to your best run; rewinds handled.
 - **Recording & replay** — every drive is saved automatically; replay at 0.5×–8×, export CSV, delete one or all.
 - **Second screen** — turn on the LAN server and open the dashboard on any phone, tablet or PC browser by scanning a QR code.
+- **15 languages** — English, Türkçe, Deutsch, Français, Español, Italiano, Português (BR), Nederlands, Polski, Русский, Українська, 日本語, 한국어, 简体中文, العربية (follows your system language, switch any time in Settings).
 - **Raw data** view with all 85+ packet fields, units (km/h / mph, °C / °F, hp / kW, bar / psi, Nm / lb·ft), UDP forwarding to other tools (e.g. SimHub).
 
 | 3D car — sunset | 3D car — neon night |
@@ -91,7 +92,7 @@ Every push builds all platforms on GitHub Actions; tags `v*` publish a release.
 
 ## Türkçe
 
-**FH Telemetry**, Forza Horizon 6'nın "Veri Çıkışı" (Data Out) telemetrisini gerçek zamanlı gösteren ücretsiz ve açık kaynaklı bir paneldir. Devir saati, gerçek araç modelleriyle canlı 3D araç, harita, grafikler, tur ve sprint zamanlama, otomatik kayıt ve tekrar oynatma içerir. Windows, macOS, Linux, Android, iOS ve iPad'de çalışır; telefon ya da tablet ikinci ekran olarak tarayıcıdan da bağlanabilir. Arayüz Türkçedir.
+**FH Telemetry**, Forza Horizon 6'nın "Veri Çıkışı" (Data Out) telemetrisini gerçek zamanlı gösteren ücretsiz ve açık kaynaklı bir paneldir. Devir saati, gerçek araç modelleriyle canlı 3D araç, harita, grafikler, tur ve sprint zamanlama, otomatik kayıt ve tekrar oynatma içerir. Windows, macOS, Linux, Android, iOS ve iPad'de çalışır; telefon ya da tablet ikinci ekran olarak tarayıcıdan da bağlanabilir. Arayüz Türkçe, İngilizce ve 13 dilde daha kullanılabilir.
 
 Kurulum: [son sürümden](https://github.com/dikeckaan/forza-horizon-6-telemetry-dashboard/releases/latest) cihazına uygun dosyayı indir. Oyunda **Ayarlar › HUD ve Oynanış › Veri Çıkışı: Açık**, IP olarak uygulamada yazan adresi, port olarak `20440` gir.
 

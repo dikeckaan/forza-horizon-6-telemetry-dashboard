@@ -21,7 +21,8 @@ export const DEFAULT_SETTINGS: Settings = {
   scene: 'day',
   ground: 'wet',
   fx: true,
-  remote: { enabled: false, port: 20480 },
+  language: 'auto',
+  remote: { enabled: false, port: 20480, key: '' },
 };
 
 const file = () => join(app.getPath('userData'), 'settings.json');

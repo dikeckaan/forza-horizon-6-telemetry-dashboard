@@ -1,16 +1,12 @@
 import * as THREE from 'three';
+import { t, type Key } from '../../i18n';
 
 export type GroundId = 'wet' | 'asphalt' | 'concrete' | 'sand' | 'snow' | 'grass' | 'neon';
 
-export const GROUND_LABELS: Record<GroundId, string> = {
-  wet: 'Islak asfalt',
-  asphalt: 'Kuru asfalt',
-  concrete: 'Beton',
-  sand: 'Çöl kumu',
-  snow: 'Kar',
-  grass: 'Çim',
-  neon: 'Neon ızgara',
-};
+export const GROUND_IDS: GroundId[] = ['wet', 'asphalt', 'concrete', 'sand', 'snow', 'grass', 'neon'];
+
+/** localized at render time */
+export const groundLabel = (id: GroundId) => t(`car.ground.${id}` as Key);
 
 export interface GroundLook {
   /** metres covered by one repeat of the detail texture */

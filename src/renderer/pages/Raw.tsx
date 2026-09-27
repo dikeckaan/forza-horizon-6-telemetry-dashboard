@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useFrame } from '../hooks';
 import type { Frame } from '../../shared/packet';
+import { t } from '../i18n';
 
 const W = ['FL', 'FR', 'RL', 'RR'];
 
@@ -26,9 +27,9 @@ export function RawPage() {
   return (
     <div className="grid">
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-        <input type="text" placeholder="Alan ara…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 260 }} />
+        <input type="text" placeholder={t('views.raw.search')} value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 260 }} />
         <span className="muted">
-          {rows.length} alan · format <b className="mono">{f.format}</b> · {f.size} byte
+          {t('views.raw.fields', { n: rows.length })} · format <b className="mono">{f.format}</b> · {t('views.raw.bytes', { n: f.size })}
         </span>
       </div>
       <div className="grid" style={{ gridTemplateColumns: '1fr 1fr' }}>

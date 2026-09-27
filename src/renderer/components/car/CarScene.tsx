@@ -9,6 +9,7 @@ import { fToC } from '../../../shared/units';
 import { tireTempColor } from '../colors';
 import { loadModel, prepareRig, type CarRig } from './rig';
 import type { ModelDef } from './models';
+import { t } from '../../i18n';
 import { GROUNDS, type GroundId } from './grounds';
 
 export type CameraMode = 'chase' | 'orbit' | 'top';
@@ -134,7 +135,7 @@ function useRig(model: ModelDef, paint: string, flip: boolean) {
       ? Promise.resolve(model.url)
       : window.fh
         ? window.fh.readModel(model.id).then((b) => b.slice().buffer as ArrayBuffer)
-        : Promise.reject(new Error('Özel modeller yalnızca masaüstü uygulamasında açılır'));
+        : Promise.reject(new Error(t('car.customModelsDesktopOnly')));
     source
       .then((src) => loadModel(model.id, src))
       .then((scene) => {
@@ -692,13 +693,13 @@ export function CarScene({
       </Canvas>
       {!rig && !error && (
         <div className="empty" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-          Model yükleniyor…
+          {t('car.modelLoading')}
         </div>
       )}
       {error && (
         <div className="empty" style={{ position: 'absolute', inset: 0 }}>
           <div>
-            <h3>Model açılamadı</h3>
+            <h3>{t('car.modelFailed')}</h3>
             {error}
           </div>
         </div>

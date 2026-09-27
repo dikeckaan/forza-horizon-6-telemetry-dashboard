@@ -1,5 +1,6 @@
 import { useFrame, useSettings, useUnits } from '../hooks';
 import { Spark } from '../components/Spark';
+import { t } from '../i18n';
 import { carName } from '../../shared/cars';
 import { carClassName, CLASS_COLORS, drivetrainName } from '../../shared/units';
 import { store } from '../store';
@@ -44,32 +45,32 @@ export function CockpitPage() {
           <span style={{ display: 'grid', placeItems: 'center', padding: '0 14px', fontSize: 24, background: '#0b0d12' }}>{f.carPerformanceIndex || '—'}</span>
         </div>
         <div style={{ minWidth: 0 }}>
-          <div className="label" style={{ letterSpacing: '.22em' }}>{name ? name.match(/^\d{4}/)?.[0] ?? 'ARAÇ' : 'ARAÇ'}</div>
+          <div className="label" style={{ letterSpacing: '.22em' }}>{name ? name.match(/^\d{4}/)?.[0] ?? t('cockpit.car') : t('cockpit.car')}</div>
           {/* car names are English: uppercase them with English rules (no dotted İ) */}
           <div lang="en" className="num" style={{ fontSize: 32, fontWeight: 700, fontStyle: 'italic', textTransform: 'uppercase', lineHeight: 1.05, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {name ? name.replace(/^\d{4}\s+/, '').replace(/\s*\(.*\)$/, '') : f.carOrdinal ? `Araç #${f.carOrdinal}` : 'Araç bekleniyor'}
+            {name ? name.replace(/^\d{4}\s+/, '').replace(/\s*\(.*\)$/, '') : f.carOrdinal ? t('app.carNumber', { n: f.carOrdinal }) : t('cockpit.waitingForCar')}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, marginLeft: 'auto', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <Chip>{drivetrainName(f.drivetrainType)}</Chip>
-          {f.numCylinders > 0 && <Chip>{f.numCylinders} silindir</Chip>}
+          {f.numCylinders > 0 && <Chip>{t('cockpit.cylinders', { n: f.numCylinders })}</Chip>}
           <Chip>
-            {Math.round(powerOf(store.maxPower, u))} {powerLabel(u)} tepe
+            {t('cockpit.peakPower', { v: Math.round(powerOf(store.maxPower, u)), unit: powerLabel(u) })}
           </Chip>
-          <Chip accent={ev?.kind === 'sprint' || ev?.kind === 'circuit'}>{ev?.kind === 'sprint' ? `Sprint · P${f.racePosition || '—'}` : ev?.kind === 'circuit' ? `Pist · P${f.racePosition || '—'}` : 'Serbest sürüş'}</Chip>
+          <Chip accent={ev?.kind === 'sprint' || ev?.kind === 'circuit'}>{ev?.kind === 'sprint' ? t('cockpit.chipSprint', { p: f.racePosition || '—' }) : ev?.kind === 'circuit' ? t('cockpit.chipCircuit', { p: f.racePosition || '—' }) : t('cockpit.freeRoam')}</Chip>
         </div>
       </div>
       {/* left column */}
       <div className="grid">
         <div className="panel">
           <div className="panel-head">
-            <span className="panel-title">Pedallar</span>
+            <span className="panel-title">{t('cockpit.pedals')}</span>
           </div>
           <Pedals f={f} />
         </div>
         <div className="panel">
           <div className="panel-head">
-            <span className="panel-title">Direksiyon</span>
+            <span className="panel-title">{t('cockpit.steering')}</span>
           </div>
           <SteeringWheel steer={f.steer} />
         </div>
@@ -83,25 +84,25 @@ export function CockpitPage() {
         </div>
         <div className="grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
           <div className="panel stat">
-            <span className="label">Güç</span>
+            <span className="label">{t('cockpit.power')}</span>
             <span className="v">
               {Math.max(0, Math.round(powerOf(f.power, u)))}
               <small>{powerLabel(u)}</small>
             </span>
-            <span className="sub">maks {Math.round(powerOf(store.maxPower, u))}</span>
+            <span className="sub">{t('cockpit.max', { v: Math.round(powerOf(store.maxPower, u)) })}</span>
             <Spark channel="power" color="#c47f1c" map={(v) => powerOf(v, u)} min={0} />
           </div>
           <div className="panel stat">
-            <span className="label">Tork</span>
+            <span className="label">{t('cockpit.torque')}</span>
             <span className="v">
               {Math.max(0, Math.round(torqueOf(f.torque, u)))}
               <small>{torqueLabel(u)}</small>
             </span>
-            <span className="sub">maks {Math.round(torqueOf(store.maxTorque, u))}</span>
+            <span className="sub">{t('cockpit.max', { v: Math.round(torqueOf(store.maxTorque, u)) })}</span>
             <Spark channel="torque" color="#8a72f0" map={(v) => torqueOf(v, u)} min={0} />
           </div>
           <div className="panel stat">
-            <span className="label">Turbo</span>
+            <span className="label">{t('cockpit.boost')}</span>
             <span className="v">
               {boost.toFixed(u.pressure === 'psi' ? 1 : 2)}
               <small>{pressureLabel(u)}</small>
@@ -110,14 +111,14 @@ export function CockpitPage() {
             <Spark channel="boost" color="#2de2e6" map={(v) => pressureOf(v, u)} height={26} />
           </div>
           <div className="panel stat">
-            <span className="label">Yakıt</span>
+            <span className="label">{t('cockpit.fuel')}</span>
             <span className="v">
               {Math.round(f.fuel * 100)}
               <small>%</small>
             </span>
             <HMeter value={f.fuel * 100} min={0} max={100} color={f.fuel < 0.15 ? '#ff4d5e' : '#ffc53d'} />
             <Spark channel="speed" color="#f03a7e" map={(v) => speedOf(v, u)} min={0} height={26} />
-            <span className="sub">hız · son 12 sn</span>
+            <span className="sub">{t('cockpit.speedLast12s')}</span>
           </div>
         </div>
       </div>
@@ -126,16 +127,16 @@ export function CockpitPage() {
       <div className="grid">
         <div className="panel">
           <div className="panel-head">
-            <span className="panel-title">G-Kuvveti</span>
+            <span className="panel-title">{t('cockpit.gForce')}</span>
             <span className="mono muted" style={{ fontSize: 11 }}>
-              tepe {store.peakG.total.toFixed(2)}g
+              {t('cockpit.peakG', { g: store.peakG.total.toFixed(2) })}
             </span>
           </div>
           <GCircle />
         </div>
         <div className="panel" style={{ padding: 0, overflow: 'hidden', height: 250 }}>
           <div style={{ position: 'absolute', top: 12, left: 14, zIndex: 1 }} className="panel-title">
-            Konum
+            {t('cockpit.position')}
           </div>
           <TrackCanvas follow zoom={0.35} interactive={false} />
         </div>
@@ -147,28 +148,28 @@ export function CockpitPage() {
         <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(112px, 1fr))', gap: 16 }}>
           {ev?.kind === 'sprint' ? (
             <>
-              <Stat label="Pozisyon" value={f.racePosition ? `P${f.racePosition}` : '—'} sub={ev.bestPosition < 99 ? `en iyi P${ev.bestPosition}` : undefined} />
-              <Stat label="Yarış süresi" value={fmtLap(f.currentRaceTime)} mono />
-              <Stat label="Yarış mesafesi" value={(f.distanceTraveled / 1000).toFixed(2)} unit="km" sub={route ? `rota ${(route.distance / 1000).toFixed(2)} km` : undefined} />
-              <Stat label="En iyi koşuya göre" value={isNaN(raceDelta) ? '—' : fmtDelta(raceDelta)} mono color={isNaN(raceDelta) ? undefined : raceDelta <= 0 ? 'var(--good)' : 'var(--bad)'} sub={route?.bestTime ? `en iyi ${fmtLap(route.bestTime)}` : undefined} />
-              <Stat label="Geri sarma" value={String(ev.rewinds)} />
+              <Stat label={t('cockpit.racePosition')} value={f.racePosition ? `P${f.racePosition}` : '—'} sub={ev.bestPosition < 99 ? t('cockpit.bestPosition', { p: ev.bestPosition }) : undefined} />
+              <Stat label={t('cockpit.raceTime')} value={fmtLap(f.currentRaceTime)} mono />
+              <Stat label={t('cockpit.raceDistance')} value={(f.distanceTraveled / 1000).toFixed(2)} unit="km" sub={route ? t('cockpit.routeLength', { km: (route.distance / 1000).toFixed(2) }) : undefined} />
+              <Stat label={t('cockpit.vsBestRun')} value={isNaN(raceDelta) ? '—' : fmtDelta(raceDelta)} mono color={isNaN(raceDelta) ? undefined : raceDelta <= 0 ? 'var(--good)' : 'var(--bad)'} sub={route?.bestTime ? t('cockpit.best', { time: fmtLap(route.bestTime) }) : undefined} />
+              <Stat label={t('cockpit.rewinds')} value={String(ev.rewinds)} />
             </>
           ) : hasLaps ? (
             <>
-              <Stat label="Tur" value={`${f.lapNumber + 1}`} sub={f.racePosition ? `Sıra P${f.racePosition}` : undefined} />
-              <Stat label="Mevcut tur" value={fmtLap(f.currentLap)} mono />
-              <Stat label="Son tur" value={fmtLap(f.lastLap)} mono />
-              <Stat label="En iyi tur" value={fmtLap(f.bestLap)} mono color="#b36bff" />
-              <Stat label="Delta" value={isNaN(delta) ? '—' : fmtDelta(delta)} mono color={isNaN(delta) ? undefined : delta <= 0 ? 'var(--good)' : 'var(--bad)'} />
-              <Stat label="Yarış süresi" value={fmtLap(f.currentRaceTime)} mono />
+              <Stat label={t('cockpit.lap')} value={`${f.lapNumber + 1}`} sub={f.racePosition ? t('cockpit.placeP', { p: f.racePosition }) : undefined} />
+              <Stat label={t('cockpit.currentLap')} value={fmtLap(f.currentLap)} mono />
+              <Stat label={t('cockpit.lastLap')} value={fmtLap(f.lastLap)} mono />
+              <Stat label={t('cockpit.bestLap')} value={fmtLap(f.bestLap)} mono color="#b36bff" />
+              <Stat label={t('cockpit.delta')} value={isNaN(delta) ? '—' : fmtDelta(delta)} mono color={isNaN(delta) ? undefined : delta <= 0 ? 'var(--good)' : 'var(--bad)'} />
+              <Stat label={t('cockpit.raceTime')} value={fmtLap(f.currentRaceTime)} mono />
             </>
           ) : (
-            <Stat label="Sürüş süresi" value={fmtLap(f.currentRaceTime)} mono />
+            <Stat label={t('cockpit.driveTime')} value={fmtLap(f.currentRaceTime)} mono />
           )}
-          <Stat label="Oturum mesafesi" value={(store.odometer / 1000).toFixed(2)} unit="km" />
-          <Stat label="Maks hız" value={Math.round(speedOf(store.maxSpeed, u)).toString()} unit={speedLabel(u)} />
-          <Stat label="Tepe G" value={`${store.peakG.lat.toFixed(2)} / ${store.peakG.long.toFixed(2)}`} sub="yanal / boyuna" />
-          <Stat label="İrtifa" value={Math.round(f.positionY).toString()} unit="m" />
+          <Stat label={t('cockpit.sessionDistance')} value={(store.odometer / 1000).toFixed(2)} unit="km" />
+          <Stat label={t('cockpit.topSpeed')} value={Math.round(speedOf(store.maxSpeed, u)).toString()} unit={speedLabel(u)} />
+          <Stat label={t('cockpit.peakGLabel')} value={`${store.peakG.lat.toFixed(2)} / ${store.peakG.long.toFixed(2)}`} sub={t('cockpit.latLong')} />
+          <Stat label={t('cockpit.altitude')} value={Math.round(f.positionY).toString()} unit="m" />
         </div>
       </div>
     </div>
@@ -192,7 +193,7 @@ function RaceProgress({ progress, known }: { progress: number | null; known: boo
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
       <span className="label" style={{ minWidth: 64 }}>
-        İlerleme
+        {t('cockpit.progress')}
       </span>
       <div style={{ flex: 1, height: 8, borderRadius: 8, background: '#141821', overflow: 'hidden' }}>
         {progress !== null ? (
@@ -206,7 +207,7 @@ function RaceProgress({ progress, known }: { progress: number | null; known: boo
       </span>
       {progress === null && (
         <span className="muted" style={{ fontSize: 11.5 }}>
-          {known ? 'ilk koşu: rota uzunluğu öğreniliyor' : 'yarışın başı görülmedi — rota tanınamadı'}
+          {known ? t('cockpit.learningRoute') : t('cockpit.routeUnknown')}
         </span>
       )}
     </div>

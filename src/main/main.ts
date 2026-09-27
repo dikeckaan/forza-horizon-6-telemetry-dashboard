@@ -4,7 +4,7 @@ import { networkInterfaces } from 'node:os';
 import { join } from 'node:path';
 import { copyFileSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { parsePacket } from '../shared/packet';
 import { DemoSim } from '../shared/demo';
@@ -13,6 +13,7 @@ import { loadSettings, saveSettings } from './settings';
 import { Recorder, deleteAllSessions, deleteSession, listSessions, sessionToCsv } from './sessions';
 import { checkToken, downloadModel, searchModels } from './sketchfab';
 import { RemoteServer } from './remote';
+import { mt, setMainLanguage } from './i18n';
 import type { SketchfabModel } from '../shared/ipc';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
@@ -102,7 +103,7 @@ function startUdp() {
     handlePacket(new Uint8Array(msg), `${rinfo.address}:${rinfo.port}`);
   });
   s.on('error', (err) => {
-    status.error = (err as NodeJS.ErrnoException).code === 'EADDRINUSE' ? `Port ${settings.port} kullanımda` : err.message;
+    status.error = (err as NodeJS.ErrnoException).code === 'EADDRINUSE' ? mt('portInUse', { port: settings.port }) : err.message;
     status.listening = false;
     pushStatus();
   });
@@ -154,6 +155,7 @@ function applySettings(patch: Partial<Settings>): Settings {
   if (patch.port !== undefined && patch.port !== prev.port) startUdp();
   if (patch.demo !== undefined && patch.demo !== prev.demo) applyDemo();
   if (patch.record === false) recorder.close();
+  if (patch.language !== undefined) setMainLanguage(settings.language);
   if (patch.remote && (patch.remote.enabled !== prev.remote.enabled || patch.remote.port !== prev.remote.port)) applyRemote();
   win?.webContents.send('settings', settings);
   remote?.event('settings', settings);
@@ -223,7 +225,7 @@ function registerIpc() {
   ipcMain.handle('sessions:reveal', () => shell.openPath(sessionsDir()));
 
   ipcMain.handle('models:import', async () => {
-    const res = await dialog.showOpenDialog(win!, { title: '3D araç modeli seç', filters: [{ name: 'glTF binary', extensions: ['glb'] }], properties: ['openFile'] });
+    const res = await dialog.showOpenDialog(win!, { title: mt('pickModel'), filters: [{ name: 'glTF binary', extensions: ['glb'] }], properties: ['openFile'] });
     if (res.canceled || !res.filePaths[0]) return settings;
     const id = randomUUID();
     mkdirSync(modelsDir(), { recursive: true });
@@ -255,7 +257,7 @@ function registerIpc() {
   ipcMain.handle('sf:search', (_e, q: string) => searchModels(String(q).slice(0, 120)));
   ipcMain.handle('sf:download', async (_e, m: SketchfabModel) => {
     const token = loadToken();
-    if (!token) throw new Error('Önce Ayarlar’dan Sketchfab hesabını bağla');
+    if (!token) throw new Error(mt('connectSketchfabFirst'));
     if (!/^[a-f0-9]{32}$/.test(m.uid)) throw new Error('bad uid');
     const existing = settings.customModels.find((c) => c.uid === m.uid);
     if (existing) return { settings, id: existing.id };
@@ -284,6 +286,12 @@ function registerIpc() {
 
 app.whenReady().then(() => {
   settings = loadSettings();
+  setMainLanguage(settings.language);
+  if (!settings.remote.key) {
+    // one random secret per install for the LAN second screen
+    settings = { ...settings, remote: { ...settings.remote, key: randomBytes(16).toString('hex') } };
+    saveSettings(settings);
+  }
   recorder = new Recorder(sessionsDir());
   remote = new RemoteServer({
     rendererDir: join(here, '../renderer'),
@@ -293,6 +301,8 @@ app.whenReady().then(() => {
     listSessions: () => listSessions(sessionsDir()),
     sessionPath: (name) => (/^[\w.-]+\.fhs$/.test(name) ? join(sessionsDir(), name) : null),
     modelPath: (id) => (safeId(id) ? join(modelsDir(), `${id}.glb`) : null),
+    allowedHosts: () => localAddresses(),
+    key: () => settings.remote.key,
   });
   status.localAddresses = localAddresses();
   registerIpc();

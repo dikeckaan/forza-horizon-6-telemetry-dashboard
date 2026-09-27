@@ -5,6 +5,7 @@ import { carName } from '../../shared/cars';
 import { useSettings, useStatus, useUnits } from '../hooks';
 import { replay } from '../replay';
 import { IconDownload, IconFolder, IconPlay, IconTrash } from '../components/icons';
+import { locale, t } from '../i18n';
 
 export function SessionsPage({ onOpen }: { onOpen: () => void }) {
   const [list, setList] = useState<SessionMeta[] | null>(null);
@@ -27,7 +28,8 @@ export function SessionsPage({ onOpen }: { onOpen: () => void }) {
     return (
       <div className="panel empty" style={{ minHeight: 300 }}>
         <div>
-          <h3>Kayıtlar masaüstü uygulamasında</h3>Tarayıcı önizlemesinde disk erişimi yok.
+          <h3>{t('sessions.desktopOnlyTitle')}</h3>
+          {t('sessions.desktopOnlyBody')}
         </div>
       </div>
     );
@@ -38,10 +40,10 @@ export function SessionsPage({ onOpen }: { onOpen: () => void }) {
     try {
       const data = await window.fh!.readSession(m.name);
       replay.load(m.name, data);
-      if (replay.truncated) setMsg('Kayıt yarım kalmış — okunabilen kısım yüklendi.');
+      if (replay.truncated) setMsg(t('sessions.truncated'));
       onOpen();
     } catch (e) {
-      setMsg(`Açılamadı: ${(e as Error).message}`);
+      setMsg(t('sessions.openFailed', { error: (e as Error).message }));
     } finally {
       setBusy(null);
     }
@@ -50,7 +52,7 @@ export function SessionsPage({ onOpen }: { onOpen: () => void }) {
   const exportCsv = async (m: SessionMeta) => {
     setBusy(m.name);
     const path = await window.fh!.exportCsv(m.name).finally(() => setBusy(null));
-    if (path) setMsg(`CSV kaydedildi: ${path}`);
+    if (path) setMsg(t('sessions.csvSaved', { path }));
   };
 
   const del = async (m: SessionMeta) => {
@@ -63,41 +65,41 @@ export function SessionsPage({ onOpen }: { onOpen: () => void }) {
     <div className="grid">
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div>
-          <div style={{ fontSize: 18, fontWeight: 650 }}>Kayıtlı sürüşler</div>
+          <div style={{ fontSize: 18, fontWeight: 650 }}>{t('sessions.title')}</div>
           <div className="muted" style={{ marginTop: 3 }}>
-            {settings.record ? 'Her sürüş otomatik kaydedilir (menüde ya da 5 sn veri yoksa kayıt kapanır).' : 'Otomatik kayıt kapalı — Ayarlar’dan açabilirsin.'}
+            {settings.record ? t('sessions.autoOn') : t('sessions.autoOff')}
           </div>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           {!manage ? null : confirmAll ? (
             <>
-              <span style={{ alignSelf: 'center', color: 'var(--bad)' }}>{list?.length ?? 0} kayıt kalıcı olarak silinsin mi?</span>
+              <span style={{ alignSelf: 'center', color: 'var(--bad)' }}>{t('sessions.confirmAll', { count: list?.length ?? 0 })}</span>
               <button
                 className="btn danger"
                 onClick={async () => {
                   const n = await window.fh!.deleteAllSessions();
                   setConfirmAll(false);
-                  setMsg(`${n} kayıt silindi.`);
+                  setMsg(t('sessions.deleted', { count: n }));
                   refresh();
                 }}
               >
-                Evet, hepsini sil
+                {t('sessions.yesDeleteAll')}
               </button>
               <button className="btn ghost" onClick={() => setConfirmAll(false)}>
-                Vazgeç
+                {t('sessions.cancel')}
               </button>
             </>
           ) : (
             <button className="btn ghost danger" disabled={!list?.length} onClick={() => setConfirmAll(true)}>
-              <IconTrash width={15} height={15} /> Tümünü sil
+              <IconTrash width={15} height={15} /> {t('sessions.deleteAll')}
             </button>
           )}
           <button className="btn" onClick={refresh}>
-            Yenile
+            {t('sessions.refresh')}
           </button>
           {manage && (
             <button className="btn" onClick={() => window.fh!.revealSessions()}>
-              <IconFolder width={15} height={15} /> Klasörü aç
+              <IconFolder width={15} height={15} /> {t('sessions.openFolder')}
             </button>
           )}
         </div>
@@ -106,29 +108,30 @@ export function SessionsPage({ onOpen }: { onOpen: () => void }) {
         <div className="panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>{msg}</span>
           <button className="btn ghost" onClick={() => setMsg(null)}>
-            Tamam
+            {t('sessions.ok')}
           </button>
         </div>
       )}
       <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
         {list === null ? (
-          <div className="empty">Yükleniyor…</div>
+          <div className="empty">{t('sessions.loading')}</div>
         ) : list.length === 0 ? (
           <div className="empty">
             <div>
-              <h3>Henüz kayıt yok</h3>Oyunda sürmeye başladığında kayıt otomatik başlar.
+              <h3>{t('sessions.emptyTitle')}</h3>
+              {t('sessions.emptyBody')}
             </div>
           </div>
         ) : (
           <table className="data">
             <thead>
               <tr>
-                <th>Tarih</th>
-                <th>Araç</th>
-                <th className="r">Süre</th>
-                <th className="r">Mesafe</th>
-                <th className="r">Vmax</th>
-                <th className="r">Boyut</th>
+                <th>{t('sessions.colDate')}</th>
+                <th>{t('sessions.colCar')}</th>
+                <th className="r">{t('sessions.colDuration')}</th>
+                <th className="r">{t('sessions.colDistance')}</th>
+                <th className="r">{t('sessions.colVmax')}</th>
+                <th className="r">{t('sessions.colSize')}</th>
                 <th />
               </tr>
             </thead>
@@ -139,7 +142,7 @@ export function SessionsPage({ onOpen }: { onOpen: () => void }) {
                 return (
                   <tr key={m.name}>
                     <td>
-                      <div style={{ fontWeight: 600 }}>{new Date(m.startEpochMs).toLocaleString('tr-TR', { dateStyle: 'medium', timeStyle: 'short' })}</div>
+                      <div style={{ fontWeight: 600 }}>{new Date(m.startEpochMs).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' })}</div>
                       <div className="muted mono" style={{ fontSize: 11 }}>
                         {m.name}
                       </div>
@@ -162,28 +165,28 @@ export function SessionsPage({ onOpen }: { onOpen: () => void }) {
                     <td className="r" style={{ whiteSpace: 'nowrap' }}>
                       {live ? (
                         <span className="pill">
-                          <span className="dot rec" /> kaydediliyor
+                          <span className="dot rec" /> {t('sessions.recording')}
                         </span>
                       ) : confirm === m.name ? (
                         <span style={{ display: 'inline-flex', gap: 6 }}>
                           <button className="btn danger" onClick={() => del(m)}>
-                            Evet, sil
+                            {t('sessions.yesDelete')}
                           </button>
                           <button className="btn ghost" onClick={() => setConfirm(null)}>
-                            Vazgeç
+                            {t('sessions.cancel')}
                           </button>
                         </span>
                       ) : (
                         <span style={{ display: 'inline-flex', gap: 6 }}>
                           <button className="btn primary" disabled={busy === m.name} onClick={() => play(m)}>
-                            <IconPlay width={13} height={13} /> Oynat
+                            <IconPlay width={13} height={13} /> {t('sessions.play')}
                           </button>
                           {manage && (
                             <>
-                              <button className="btn" disabled={busy === m.name} onClick={() => exportCsv(m)} title="CSV olarak dışa aktar">
+                              <button className="btn" disabled={busy === m.name} onClick={() => exportCsv(m)} title={t('sessions.exportCsv')}>
                                 <IconDownload width={15} height={15} /> CSV
                               </button>
-                              <button className="btn ghost danger" onClick={() => setConfirm(m.name)} title="Sil">
+                              <button className="btn ghost danger" onClick={() => setConfirm(m.name)} title={t('sessions.delete')}>
                                 <IconTrash width={15} height={15} />
                               </button>
                             </>

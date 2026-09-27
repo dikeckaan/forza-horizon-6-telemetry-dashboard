@@ -27,8 +27,11 @@ export interface Settings {
   ground: 'wet' | 'asphalt' | 'concrete' | 'sand' | 'snow' | 'grass' | 'neon';
   /** post-processing (bloom, ambient occlusion…) */
   fx: boolean;
+  /** UI language: 'auto' (system) or a code like 'en', 'tr', 'pt-BR' */
+  language: string;
   /** LAN second screen for phones and tablets */
-  remote: { enabled: boolean; port: number };
+  /** `key` is a random secret required by the LAN API (embedded in the QR / URL) */
+  remote: { enabled: boolean; port: number; key: string };
 }
 
 export interface CustomModel {

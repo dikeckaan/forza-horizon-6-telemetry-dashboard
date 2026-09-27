@@ -6,6 +6,7 @@ import { FALLBACK_SETTINGS, SettingsContext, StatusContext, useFrame, useStale, 
 import { replay } from './replay';
 import { useAutoModel } from './autoModel';
 import { store } from './store';
+import { resolveLanguage, setLanguage, t, type Key } from './i18n';
 import { IconCar, IconChart, IconFlag, IconFolder, IconGauge, IconList, IconMap, IconPause, IconPlay, IconSettings, IconX } from './components/icons';
 import { CockpitPage } from './pages/Cockpit';
 import { CarPage } from './pages/Car';
@@ -18,14 +19,14 @@ import { SettingsPage } from './pages/SettingsPage';
 
 type PageId = 'cockpit' | 'car' | 'map' | 'charts' | 'laps' | 'sessions' | 'raw' | 'settings';
 
-const PAGES: { id: PageId; label: string; icon: ReactNode }[] = [
-  { id: 'cockpit', label: 'Kokpit', icon: <IconGauge /> },
-  { id: 'car', label: 'Araç & Lastikler', icon: <IconCar /> },
-  { id: 'map', label: 'Harita', icon: <IconMap /> },
-  { id: 'charts', label: 'Grafikler', icon: <IconChart /> },
-  { id: 'laps', label: 'Yarış & Turlar', icon: <IconFlag /> },
-  { id: 'sessions', label: 'Kayıtlar', icon: <IconFolder /> },
-  { id: 'raw', label: 'Ham Veri', icon: <IconList /> },
+const PAGES: { id: PageId; label: Key; icon: ReactNode }[] = [
+  { id: 'cockpit', label: 'app.nav.cockpit', icon: <IconGauge /> },
+  { id: 'car', label: 'app.nav.car', icon: <IconCar /> },
+  { id: 'map', label: 'app.nav.map', icon: <IconMap /> },
+  { id: 'charts', label: 'app.nav.charts', icon: <IconChart /> },
+  { id: 'laps', label: 'app.nav.laps', icon: <IconFlag /> },
+  { id: 'sessions', label: 'app.nav.sessions', icon: <IconFolder /> },
+  { id: 'raw', label: 'app.nav.raw', icon: <IconList /> },
 ];
 
 const browserStatus: Status = {
@@ -33,7 +34,7 @@ const browserStatus: Status = {
   port: 20440,
   error: null,
   packetsPerSec: 60,
-  source: 'tarayıcı demo',
+  source: 'browser demo',
   lastPacketAt: 0,
   packetSize: 324,
   demo: true,
@@ -70,6 +71,9 @@ export function App() {
     setSettings((s) => ({ ...s, ...patch }));
     window.fh?.setSettings(patch).then(setSettings);
   }, []);
+  // set the language before children render; the app remounts when it changes
+  const lang = resolveLanguage(settings.language);
+  setLanguage(lang);
   const carOrdinal = useSyncExternalStore(store.subscribe.bind(store), () => (store.raceOn || store.frame ? (store.frame?.carOrdinal ?? 0) : 0));
   useAutoModel(replay.active ? 0 : carOrdinal, settings, update);
 
@@ -92,19 +96,19 @@ export function App() {
   return (
     <SettingsContext.Provider value={{ settings, update }}>
       <StatusContext.Provider value={status}>
-        <div className="app">
+        <div className="app" key={lang}>
           <TitleBar />
           <nav className="nav">
             {PAGES.filter((p) => p.id !== 'sessions' || window.fh?.caps.sessions).map((p) => (
-              <button key={p.id} className={page === p.id ? 'active' : ''} onClick={() => setPage(p.id)} aria-label={p.label}>
+              <button key={p.id} className={page === p.id ? 'active' : ''} onClick={() => setPage(p.id)} aria-label={t(p.label)}>
                 {p.icon}
-                <span className="tip">{p.label}</span>
+                <span className="tip">{t(p.label)}</span>
               </button>
             ))}
             <div className="spacer" />
-            <button className={page === 'settings' ? 'active' : ''} onClick={() => setPage('settings')} aria-label="Ayarlar">
+            <button className={page === 'settings' ? 'active' : ''} onClick={() => setPage('settings')} aria-label={t('app.nav.settings')}>
               <IconSettings />
-              <span className="tip">Ayarlar</span>
+              <span className="tip">{t('app.nav.settings')}</span>
             </button>
           </nav>
           <main className="main">
@@ -137,10 +141,10 @@ function TitleBar() {
   const carName = nameOf(f.carOrdinal, settings.carNames);
 
   let conn: ReactNode;
-  if (replayActive) conn = <><span className="dot warn" /> Kayıt oynatılıyor</>;
+  if (replayActive) conn = <><span className="dot warn" /> {t('app.status.replaying')}</>;
   else if (status?.error) conn = <><span className="dot bad" /> {status.error}</>;
-  else if (!stale) conn = <><span className="dot live" /> <b>{status?.demo ? 'Demo' : 'Canlı'}</b> <span className="mono">{status?.packetsPerSec ?? 0}/s</span></>;
-  else conn = <><span className="dot" /> Bekleniyor · UDP {status?.port ?? 20440}</>;
+  else if (!stale) conn = <><span className="dot live" /> <b>{status?.demo ? t('app.status.demo') : t('app.status.live')}</b> <span className="mono">{status?.packetsPerSec ?? 0}/s</span></>;
+  else conn = <><span className="dot" /> {t('app.status.waiting', { port: status?.port ?? 20440 })}</>;
 
   return (
     <header className={`titlebar ${window.fh?.platform === 'darwin' ? 'mac' : ''}`}>
@@ -156,9 +160,9 @@ function TitleBar() {
             <span style={{ background: CLASS_COLORS[cls] ?? '#888' }}>{cls}</span>
             <span>{f.carPerformanceIndex}</span>
           </span>
-          <span style={{ fontWeight: 600 }}>{carName ?? `Araç #${f.carOrdinal}`}</span>
+          <span style={{ fontWeight: 600 }}>{carName ?? t('app.carNumber', { n: f.carOrdinal })}</span>
           <span className="muted">
-            {drivetrainName(f.drivetrainType)} · {f.numCylinders} sil.
+            {drivetrainName(f.drivetrainType)} · {t('app.cylindersShort', { n: f.numCylinders })}
           </span>
         </div>
       )}
@@ -188,7 +192,7 @@ function WaitingOverlay({ onSettings }: { onSettings: () => void }) {
     return (
       <div style={{ position: 'absolute', top: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 6, pointerEvents: 'none' }}>
         <span className="pill" style={{ background: 'rgba(7,8,11,.85)', borderColor: 'rgba(255,197,61,.4)' }}>
-          <span className="dot warn" /> Oyun duraklatıldı · veriler donduruldu
+          <span className="dot warn" /> {t('app.paused')}
         </span>
       </div>
     );
@@ -200,14 +204,14 @@ function WaitingOverlay({ onSettings }: { onSettings: () => void }) {
         <div className="radar" />
         {inMenu ? (
           <>
-            <h2>Oyun bağlı — menüde</h2>
-            <p>Sürüşe başladığında veriler burada canlanacak.</p>
+            <h2>{t('app.menu.title')}</h2>
+            <p>{t('app.menu.body')}</p>
           </>
         ) : (
           <>
-            <h2>Telemetri bekleniyor</h2>
+            <h2>{t('app.waiting.title')}</h2>
             <p>
-              Forza Horizon 6 → <b>Ayarlar › HUD ve Oynanış</b> → <b>Veri Çıkışı: Açık</b>
+              Forza Horizon 6 → <b>{t('app.waiting.menuPath')}</b> → <b>{t('app.waiting.dataOutOn')}</b>
             </p>
             <p>
               IP: <span className="kbd">{ip}</span> &nbsp; Port: <span className="kbd">{status?.port ?? 20440}</span>
@@ -215,7 +219,7 @@ function WaitingOverlay({ onSettings }: { onSettings: () => void }) {
             {status?.error && <p style={{ color: 'var(--bad)' }}>{status.error}</p>}
             <p style={{ marginTop: 14 }}>
               <button className="btn" onClick={onSettings}>
-                Ayarlar / Demo modu
+                {t('app.waiting.settingsButton')}
               </button>
             </p>
           </>
@@ -256,7 +260,7 @@ function ReplayBar() {
         {replay.name}
       </span>
       <button className="btn ghost" onClick={() => replay.exit()}>
-        <IconX width={15} height={15} /> Canlıya dön
+        <IconX width={15} height={15} /> {t('app.replay.backToLive')}
       </button>
     </div>
   );

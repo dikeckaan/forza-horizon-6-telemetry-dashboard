@@ -4,6 +4,7 @@ import { useSettings } from '../../hooks';
 import { downloadFor, useDownloadState } from '../../autoModel';
 import { scoreModel } from '../../../shared/modelpick';
 import { IconX } from '../icons';
+import { t } from '../../i18n';
 
 const TOKEN_URL = 'https://sketchfab.com/settings/password';
 
@@ -45,7 +46,7 @@ export function Library({ ordinal, carName, initialQuery, onClose }: { ordinal: 
       update({ sketchfab: s.sketchfab });
       setToken('');
     } catch {
-      setErr('Bağlanılamadı: anahtarı kontrol et');
+      setErr(t('car.lib.connectFailed'));
     }
   };
 
@@ -62,28 +63,28 @@ export function Library({ ordinal, carName, initialQuery, onClose }: { ordinal: 
 
   if (!window.fh) {
     return (
-      <Shell onClose={onClose} title="Araç kütüphanesi">
-        <div className="empty">Kütüphane masaüstü uygulamasında çalışır.</div>
+      <Shell onClose={onClose} title={t('car.lib.title')}>
+        <div className="empty">{t('car.lib.desktopOnly')}</div>
       </Shell>
     );
   }
 
   return (
-    <Shell onClose={onClose} title={carName ? `Araç kütüphanesi · ${carName}` : 'Araç kütüphanesi'}>
+    <Shell onClose={onClose} title={carName ? `${t('car.lib.title')} · ${carName}` : t('car.lib.title')}>
       {!connected && (
         <div className="panel" style={{ marginBottom: 12, background: 'rgba(255,46,136,.08)', borderColor: 'rgba(255,46,136,.3)' }}>
-          <div style={{ fontWeight: 650, marginBottom: 4 }}>İndirmek için Sketchfab hesabını bağla (ücretsiz)</div>
+          <div style={{ fontWeight: 650, marginBottom: 4 }}>{t('car.lib.connectTitle')}</div>
           <div className="muted" style={{ lineHeight: 1.5, marginBottom: 10 }}>
-            Sketchfab, modelleri yalnızca hesabı olanlara indiriyor. Hesabına giriş yap →{' '}
+            {t('car.lib.connectBefore')}{' '}
             <a href="#" onClick={(e) => (e.preventDefault(), window.fh?.openExternal(TOKEN_URL))} style={{ color: 'var(--accent)' }}>
-              Ayarlar › Password &amp; API
+              {t('car.lib.connectLink')}
             </a>{' '}
-            sayfasındaki <b>API Token</b>’ı kopyalayıp buraya yapıştır. Anahtar bu bilgisayarda şifreli saklanır.
+            {t('car.lib.connectAfter')}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <input type="text" placeholder="API token" value={token} onChange={(e) => setToken(e.target.value)} style={{ flex: 1 }} />
+            <input type="text" placeholder={t('car.lib.tokenPlaceholder')} value={token} onChange={(e) => setToken(e.target.value)} style={{ flex: 1 }} />
             <button className="btn primary" onClick={connect} disabled={!token.trim()}>
-              Bağla
+              {t('car.lib.connect')}
             </button>
           </div>
         </div>
@@ -95,16 +96,16 @@ export function Library({ ordinal, carName, initialQuery, onClose }: { ordinal: 
           search(q);
         }}
       >
-        <input type="text" value={q} onChange={(e) => setQ(e.target.value)} style={{ flex: 1 }} placeholder="ör. Porsche 911 GT3, rally car, pickup truck…" />
+        <input type="text" value={q} onChange={(e) => setQ(e.target.value)} style={{ flex: 1 }} placeholder={t('car.lib.searchPlaceholder')} />
         <button className="btn" type="submit" disabled={busy}>
-          {busy ? 'Aranıyor…' : 'Ara'}
+          {busy ? t('car.lib.searching') : t('car.lib.search')}
         </button>
       </form>
       {err && <div style={{ color: 'var(--bad)', marginBottom: 10 }}>{err}</div>}
       {dl.status === 'downloading' && (
         <div className="panel" style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-            <span>{dl.label} indiriliyor…</span>
+            <span>{t('car.downloading', { name: dl.label })}</span>
             <span className="mono">
               {(dl.received / 1e6).toFixed(1)} / {dl.total ? (dl.total / 1e6).toFixed(1) : '?'} MB
             </span>
@@ -129,13 +130,13 @@ export function Library({ ordinal, carName, initialQuery, onClose }: { ordinal: 
                   {m.author} · {m.license.replace('CC Attribution', 'CC BY')}
                 </div>
                 <div className="mono muted" style={{ fontSize: 11 }}>
-                  {m.glbBytes ? `${(m.glbBytes / 1e6).toFixed(0)} MB` : '? MB'} · {(m.faces / 1000).toFixed(0)}k üçgen
+                  {m.glbBytes ? `${(m.glbBytes / 1e6).toFixed(0)} MB` : '? MB'} · {t('car.lib.triangles', { k: (m.faces / 1000).toFixed(0) })}
                 </div>
                 <div style={{ display: 'flex', gap: 6, marginTop: 'auto', paddingTop: 6 }}>
                   <button className="btn primary" style={{ flex: 1, justifyContent: 'center' }} disabled={(!connected && !have) || dl.status === 'downloading'} onClick={() => use(m)}>
-                    {have ? 'Kullan' : 'İndir ve kullan'}
+                    {have ? t('car.lib.use') : t('car.lib.downloadUse')}
                   </button>
-                  <button className="btn ghost" onClick={() => window.fh?.openExternal(m.viewerUrl)} title="Sketchfab'da aç">
+                  <button className="btn ghost" onClick={() => window.fh?.openExternal(m.viewerUrl)} title={t('car.lib.openOnSketchfab')}>
                     ↗
                   </button>
                 </div>
@@ -144,9 +145,9 @@ export function Library({ ordinal, carName, initialQuery, onClose }: { ordinal: 
           );
         })}
       </div>
-      {results && !results.length && <div className="empty">Sonuç yok. Daha kısa bir arama dene (ör. sadece model adı).</div>}
+      {results && !results.length && <div className="empty">{t('car.lib.noResults')}</div>}
       <p className="muted" style={{ fontSize: 11, marginTop: 14, lineHeight: 1.5 }}>
-        Modeller Sketchfab kullanıcılarına aittir; lisansları kartlarda yazar (çoğu yalnızca kişisel kullanım için). İndirilenler bu bilgisayarda saklanır.
+        {t('car.lib.footer')}
       </p>
     </Shell>
   );
@@ -162,7 +163,7 @@ function Shell({ title, onClose, children }: { title: string; onClose: () => voi
       >
         <div className="panel-head" style={{ marginBottom: 14 }}>
           <span style={{ fontSize: 16, fontWeight: 650 }}>{title}</span>
-          <button className="btn ghost" onClick={onClose} aria-label="Kapat">
+          <button className="btn ghost" onClick={onClose} aria-label={t('car.lib.close')}>
             <IconX width={15} height={15} />
           </button>
         </div>
