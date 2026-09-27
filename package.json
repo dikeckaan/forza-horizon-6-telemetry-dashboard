@@ -1,7 +1,7 @@
 {
   "name": "forza-horizon-6-telemetry-dashboard",
   "productName": "FH Telemetry",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Real-time Forza Horizon 6 telemetry dashboard (Data Out UDP): tachometer, live 3D car with real models, track map, charts, lap and sprint timing, recording & replay. Windows, macOS, Linux, Android, iOS and iPad.",
   "author": {
     "name": "Abdurrahman Kaan Dikeç",
