@@ -11,9 +11,11 @@ export const DEFAULT_SETTINGS: Settings = {
   demo: false,
   record: true,
   carNames: {},
-  carStyles: {},
-  categoryStyles: {},
+  carModels: {},
+  categoryModels: {},
   carPaints: {},
+  customModels: [],
+  modelFlips: {},
 };
 
 const file = () => join(app.getPath('userData'), 'settings.json');

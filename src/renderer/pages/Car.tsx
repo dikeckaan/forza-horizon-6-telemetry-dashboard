@@ -1,26 +1,14 @@
 import { lazy, Suspense, useState } from 'react';
 import { useFrame, useSettings, useUnits } from '../hooks';
-import { autoPaint, guessStyle, PAINTS, STYLE_LABELS, type BodyStyle } from '../components/car/archetypes';
+import { allModels, autoPaint, PAINTS, resolveModel, type ModelSource } from '../components/car/models';
 import type { CameraMode } from '../components/car/CarScene';
-import type { Settings } from '../../shared/ipc';
 import { tempLabel, tempOf, fToC, speedOf, speedLabel } from '../../shared/units';
 import type { Frame } from '../../shared/packet';
 import { tireTempColor } from '../components/colors';
 
 const CarScene = lazy(() => import('../components/car/CarScene').then((m) => ({ default: m.CarScene })));
 
-type StyleSource = 'user' | 'learned' | 'guess';
-
-/** user choice for this car → choice learned for its game category → heuristic */
-function resolveStyle(f: Frame, s: Settings): { style: BodyStyle; source: StyleSource } {
-  const own = s.carStyles[String(f.carOrdinal)] as BodyStyle | undefined;
-  if (own && own in STYLE_LABELS) return { style: own, source: 'user' };
-  const cat = f.horizonCarCategory ? (s.categoryStyles[String(f.horizonCarCategory)] as BodyStyle | undefined) : undefined;
-  if (cat && cat in STYLE_LABELS) return { style: cat, source: 'learned' };
-  return { style: guessStyle(f), source: 'guess' };
-}
-
-const SOURCE_LABEL: Record<StyleSource, string> = { user: 'seçimin', learned: 'kategoriden öğrenildi', guess: 'otomatik tahmin' };
+const SOURCE_LABEL: Record<ModelSource, string> = { user: 'seçimin', learned: 'kategoriden öğrenildi', guess: 'otomatik' };
 
 const NAMES = ['Ön Sol', 'Ön Sağ', 'Arka Sol', 'Arka Sağ'];
 const deg = (r: number) => (r * 180) / Math.PI;
@@ -33,20 +21,35 @@ export function CarPage() {
   const [picker, setPicker] = useState(false);
   const { settings, update } = useSettings();
   const drift = f.speed > 3 ? deg(Math.atan2(f.velocityX, Math.max(0.1, f.velocityZ))) : 0;
-  const { style, source } = resolveStyle(f, settings);
+  const { model, source } = resolveModel(f, settings);
   const ord = String(f.carOrdinal);
   const paint = settings.carPaints[ord] ?? autoPaint(f.carOrdinal);
+  const flip = !!settings.modelFlips[model.id];
 
-  const chooseStyle = (st: BodyStyle | null) => {
-    const carStyles = { ...settings.carStyles };
-    const categoryStyles = { ...settings.categoryStyles };
-    if (st) {
-      carStyles[ord] = st;
-      // teach the category so other cars of the same kind look right too
-      if (f.horizonCarCategory) categoryStyles[String(f.horizonCarCategory)] = st;
-    } else delete carStyles[ord];
-    update({ carStyles, categoryStyles });
+  const chooseModel = (id: string | null) => {
+    const carModels = { ...settings.carModels };
+    const categoryModels = { ...settings.categoryModels };
+    if (id) {
+      carModels[ord] = id;
+      // teach the category so other cars of the same kind get it too
+      if (f.horizonCarCategory) categoryModels[String(f.horizonCarCategory)] = id;
+    } else delete carModels[ord];
+    update({ carModels, categoryModels });
     setPicker(false);
+  };
+  const importModel = async () => {
+    setPicker(false);
+    if (!window.fh) return;
+    const before = new Set(settings.customModels.map((m) => m.id));
+    const next = await window.fh.importModel();
+    const added = next.customModels.find((m) => !before.has(m.id));
+    update({ customModels: next.customModels });
+    if (added) chooseModel(added.id);
+  };
+  const removeModel = async (id: string) => {
+    if (!window.fh) return;
+    const next = await window.fh.deleteModel(id);
+    update({ customModels: next.customModels, carModels: next.carModels, categoryModels: next.categoryModels });
   };
   const setCamera = (c: CameraMode) => {
     setCam(c);
@@ -66,28 +69,43 @@ export function CarPage() {
       <div className="panel" style={{ padding: 0, overflow: 'hidden', minHeight: 560 }}>
         <div style={{ position: 'absolute', inset: 0 }}>
           <Suspense fallback={<div className="empty">3D yükleniyor…</div>}>
-            <CarScene style={style} paint={paint} xray={xray} exaggerate={ex} camera={cam} />
+            <CarScene model={model} paint={paint} flip={flip} xray={xray} exaggerate={ex} camera={cam} />
           </Suspense>
         </div>
 
         <div style={{ position: 'absolute', top: 12, left: 12, right: 12, zIndex: 2, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ position: 'relative' }}>
-            <button className="btn" onClick={() => setPicker((v) => !v)} title="Gövde tipi">
-              {STYLE_LABELS[style]} <span className="muted" style={{ fontWeight: 500 }}>· {SOURCE_LABEL[source]}</span> ▾
+            <button className="btn" onClick={() => setPicker((v) => !v)} title="3D model">
+              {model.label} <span className="muted" style={{ fontWeight: 500 }}>· {SOURCE_LABEL[source]}</span> ▾
             </button>
             {picker && (
-              <div className="panel" style={{ position: 'absolute', top: 38, left: 0, zIndex: 5, padding: 6, minWidth: 220, background: '#11141b', boxShadow: '0 20px 50px rgba(0,0,0,.5)' }}>
-                <MenuItem active={source !== 'user'} onClick={() => chooseStyle(null)}>
-                  Otomatik <span className="muted">({STYLE_LABELS[guessStyle(f)]})</span>
+              <div className="panel" style={{ position: 'absolute', top: 38, left: 0, zIndex: 5, padding: 6, minWidth: 260, background: '#11141b', boxShadow: '0 20px 50px rgba(0,0,0,.5)' }}>
+                <MenuItem active={source !== 'user'} onClick={() => chooseModel(null)}>
+                  Otomatik
                 </MenuItem>
                 <div style={{ height: 1, background: 'var(--line)', margin: '4px 0' }} />
-                {(Object.keys(STYLE_LABELS) as BodyStyle[]).map((k) => (
-                  <MenuItem key={k} active={source === 'user' && style === k} onClick={() => chooseStyle(k)}>
-                    {STYLE_LABELS[k]}
-                  </MenuItem>
+                {allModels(settings).map((m) => (
+                  <div key={m.id} style={{ display: 'flex', alignItems: 'center' }}>
+                    <MenuItem active={source === 'user' && model.id === m.id} onClick={() => chooseModel(m.id)}>
+                      {m.label}
+                      {!m.url && <span className="muted">· senin</span>}
+                    </MenuItem>
+                    {!m.url && (
+                      <button className="btn ghost danger" style={{ height: 26, padding: '0 8px' }} onClick={() => removeModel(m.id)} title="Modeli sil">
+                        ✕
+                      </button>
+                    )}
+                  </div>
                 ))}
+                <div style={{ height: 1, background: 'var(--line)', margin: '4px 0' }} />
+                <MenuItem active={false} onClick={importModel}>
+                  + Kendi modelini yükle (.glb)…
+                </MenuItem>
+                <MenuItem active={flip} onClick={() => update({ modelFlips: { ...settings.modelFlips, [model.id]: !flip } })}>
+                  ⇅ Önü/arkası ters görünüyorsa çevir
+                </MenuItem>
                 <div className="muted" style={{ fontSize: 11, padding: '6px 8px 2px', lineHeight: 1.45 }}>
-                  Oyun modeli göndermiyor; seçimin bu araca ve aynı oyun kategorisindeki araçlara uygulanır.
+                  Oyun hangi araç olduğunu göndermiyor. Seçimin bu araca ve aynı oyun kategorisindeki araçlara uygulanır. Sketchfab gibi sitelerden indirdiğin .glb araçlarda tekerlekler otomatik bulunur.
                 </div>
               </div>
             )}

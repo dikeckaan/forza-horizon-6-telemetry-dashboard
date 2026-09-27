@@ -7,12 +7,21 @@ export interface Settings {
   demo: boolean;
   record: boolean;
   carNames: Record<string, string>;
-  /** body style chosen by the user, per car ordinal */
-  carStyles: Record<string, string>;
-  /** body style learned per game-reported car category (horizon block) */
-  categoryStyles: Record<string, string>;
+  /** 3D model chosen by the user, per car ordinal */
+  carModels: Record<string, string>;
+  /** 3D model learned per game-reported car category (horizon block) */
+  categoryModels: Record<string, string>;
   /** paint chosen by the user, per car ordinal */
   carPaints: Record<string, string>;
+  /** user-imported .glb models (files live in userData/models) */
+  customModels: CustomModel[];
+  /** models whose front/back auto-detection was corrected */
+  modelFlips: Record<string, boolean>;
+}
+
+export interface CustomModel {
+  id: string;
+  name: string;
 }
 
 export interface Status {
@@ -51,6 +60,9 @@ export interface FhBridge {
   deleteSession(name: string): Promise<void>;
   exportCsv(name: string): Promise<string | null>;
   revealSessions(): Promise<void>;
+  importModel(): Promise<Settings>;
+  readModel(id: string): Promise<Uint8Array>;
+  deleteModel(id: string): Promise<Settings>;
   platform: string;
 }
 

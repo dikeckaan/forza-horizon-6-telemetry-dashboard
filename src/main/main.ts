@@ -2,7 +2,9 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { createSocket, type Socket } from 'node:dgram';
 import { networkInterfaces } from 'node:os';
 import { join } from 'node:path';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { basename } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { parsePacket } from '../shared/packet';
 import { DemoSim } from '../shared/demo';
@@ -21,6 +23,8 @@ let recorder: Recorder;
 let demoTimer: NodeJS.Timeout | null = null;
 
 const sessionsDir = () => join(app.getPath('userData'), 'sessions');
+const modelsDir = () => join(app.getPath('userData'), 'models');
+const safeId = (id: string) => /^[a-f0-9-]{36}$/.test(id);
 
 const status: Status = {
   listening: false,
@@ -173,6 +177,33 @@ function registerIpc() {
     return res.filePath;
   });
   ipcMain.handle('sessions:reveal', () => shell.openPath(sessionsDir()));
+
+  ipcMain.handle('models:import', async () => {
+    const res = await dialog.showOpenDialog(win!, { title: '3D araç modeli seç', filters: [{ name: 'glTF binary', extensions: ['glb'] }], properties: ['openFile'] });
+    if (res.canceled || !res.filePaths[0]) return settings;
+    const id = randomUUID();
+    mkdirSync(modelsDir(), { recursive: true });
+    copyFileSync(res.filePaths[0], join(modelsDir(), `${id}.glb`));
+    settings = { ...settings, customModels: [...settings.customModels, { id, name: basename(res.filePaths[0]).replace(/\.glb$/i, '') }] };
+    saveSettings(settings);
+    return settings;
+  });
+  ipcMain.handle('models:read', (_e, id: string) => {
+    if (!safeId(id)) throw new Error('bad id');
+    return new Uint8Array(readFileSync(join(modelsDir(), `${id}.glb`)));
+  });
+  ipcMain.handle('models:delete', (_e, id: string) => {
+    if (!safeId(id)) throw new Error('bad id');
+    try {
+      unlinkSync(join(modelsDir(), `${id}.glb`));
+    } catch {
+      /* already gone */
+    }
+    const drop = (r: Record<string, string>) => Object.fromEntries(Object.entries(r).filter(([, v]) => v !== id));
+    settings = { ...settings, customModels: settings.customModels.filter((m) => m.id !== id), carModels: drop(settings.carModels), categoryModels: drop(settings.categoryModels) };
+    saveSettings(settings);
+    return settings;
+  });
 }
 
 app.whenReady().then(() => {

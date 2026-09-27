@@ -62,9 +62,11 @@ export const FALLBACK_SETTINGS: Settings = {
   demo: false,
   record: true,
   carNames: {},
-  carStyles: {},
-  categoryStyles: {},
+  carModels: {},
+  categoryModels: {},
   carPaints: {},
+  customModels: [],
+  modelFlips: {},
 };
 
 export interface SettingsCtx {
