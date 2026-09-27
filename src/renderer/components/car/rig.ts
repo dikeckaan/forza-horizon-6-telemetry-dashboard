@@ -98,6 +98,58 @@ function findWheels(scene: THREE.Object3D, center: THREE.Vector3, carLength: num
   return best.map((b) => b?.o ?? null);
 }
 
+/**
+ * Yaw (around y) that makes a wheel's tyre thinnest along x, i.e. puts its axle
+ * on the x axis. Works on the vertices, so it does not trust node transforms.
+ */
+function axleYaw(node: THREE.Object3D, center: THREE.Vector3): { yaw: number; width: number } {
+  const pts: number[] = [];
+  const v = new THREE.Vector3();
+  node.updateMatrixWorld(true);
+  node.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    const pos = m.geometry.getAttribute('position');
+    if (!pos) return;
+    const step = Math.max(1, Math.floor(pos.count / 1500));
+    for (let i = 0; i < pos.count; i += step) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld).sub(center);
+      pts.push(v.x, v.z);
+    }
+  });
+  if (!pts.length) return { yaw: 0, width: 0.25 };
+  const extent = (th: number) => {
+    const c = Math.cos(th);
+    const s = Math.sin(th);
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (let i = 0; i < pts.length; i += 2) {
+      const x = pts[i] * c + pts[i + 1] * s;
+      if (x < lo) lo = x;
+      if (x > hi) hi = x;
+    }
+    return hi - lo;
+  };
+  let best = 0;
+  let bestW = extent(0);
+  for (let th = -0.8; th <= 0.8; th += 0.01) {
+    const w = extent(th);
+    if (w < bestW - 1e-4) {
+      bestW = w;
+      best = th;
+    }
+  }
+  // refine around the coarse minimum
+  for (let th = best - 0.01; th <= best + 0.01; th += 0.0005) {
+    const w = extent(th);
+    if (w < bestW) {
+      bestW = w;
+      best = th;
+    }
+  }
+  return { yaw: Math.abs(best) < 0.004 ? 0 : best, width: bestW };
+}
+
 function isAncestor(a: THREE.Object3D, b: THREE.Object3D) {
   for (let p = b.parent; p; p = p.parent) if (p === a) return true;
   return false;
@@ -235,14 +287,23 @@ export function prepareRig(source: THREE.Group, paint: string, opts: ModelOption
       const wc = wb.getCenter(new THREE.Vector3());
       const ws = wb.getSize(new THREE.Vector3());
       steer.position.copy(wc);
+      const align = new THREE.Group(); // straightens pre-steered wheels, then spins
+      const alignFixed = new THREE.Group(); // same correction for parts that must not spin
+      spin.add(align);
+      steer.add(alignFixed);
       root.updateMatrixWorld(true);
-      spin.attach(node);
+      align.attach(node);
       // calipers/pads are fixed to the upright: steer with the wheel but never spin
       const fixed: THREE.Object3D[] = [];
       node.traverse((o) => {
         if (o !== node && /caliper|brake.?pad|pad\b/i.test(o.name)) fixed.push(o);
       });
-      for (const o of fixed) steer.attach(o);
+      for (const o of fixed) alignFixed.attach(o);
+      // showroom models often ship with the front wheels turned; measure the axle and undo it
+      const { yaw, width } = axleYaw(node, wc);
+      align.rotation.y = yaw;
+      alignFixed.rotation.y = yaw;
+      ws.x = width;
       node.traverse((o) => {
         const m = o as THREE.Mesh;
         if (!m.isMesh) return;
