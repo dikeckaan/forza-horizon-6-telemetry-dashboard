@@ -14,7 +14,7 @@ Tachometer, live 3D car with real car models, track map, charts, lap & sprint ti
 [![License: MIT](https://img.shields.io/badge/license-MIT-pink.svg)](LICENSE)
 
 [**⬇ Download**](https://github.com/dikeckaan/forza-horizon-6-telemetry-dashboard/releases/latest) ·
-[**▶ Try the web demo**](https://dikeckaan.github.io/forza-horizon-6-telemetry-dashboard/) ·
+[**▶ Try the web demo**](https://kaandikec.com/forza-horizon-6-telemetry-dashboard/) ·
 [Türkçe](#türkçe)
 
 <img src="docs/screenshots/cockpit.png" alt="Forza Horizon 6 telemetry dashboard cockpit with tachometer, shift lights, pedals, G-force and track map" />

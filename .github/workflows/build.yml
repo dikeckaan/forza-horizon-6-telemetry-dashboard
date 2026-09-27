@@ -87,7 +87,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-      - uses: android-actions/setup-android@v3
+      # ubuntu-latest ships the Android SDK (ANDROID_HOME) with licences accepted
       - run: npm ci
       - run: npx vite build
       - run: npx cap sync android
