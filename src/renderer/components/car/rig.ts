@@ -29,6 +29,9 @@ export interface CarRig {
   paintMaterials: THREE.MeshPhysicalMaterial[];
   brakeMaterials: THREE.MeshStandardMaterial[][];
   tailMaterials: THREE.MeshStandardMaterial[];
+  headMaterials: THREE.MeshStandardMaterial[];
+  /** front bumper z, for headlight beams */
+  frontZ: number;
   bodyMaterials: THREE.Material[];
   tireMaterials: THREE.MeshStandardMaterial[][];
 }
@@ -59,6 +62,7 @@ const PAINT_RE = /body|paint|carpaint|color1|colour1|exterior|shell|panel/i;
 const NOT_PAINT_RE = /interior|underside|under|glass|window|rim|tire|tyre|wheel|light|lamp|grill|chrome|trim|rubber|seat|carbon|plate|gasket|black|color2|colour2/i;
 const GLASS_RE = /glass|window|windshield|windscreen/i;
 const NOT_GLASS_RE = /gasket|wiper|base|frame|seal|trim/i;
+const HEAD_RE = /head.?light|headlamp|projector|head_lamp|front.?light|drl/i;
 const TAIL_RE = /tail.?light|lights?_red|brake.?light|rear.?light|taillight/i;
 const BRAKE_RE = /brake|disc|rotor/i;
 const NOT_BRAKE_RE = /pad|caliper|light|pedal/i;
@@ -71,8 +75,68 @@ function worldBox(o: THREE.Object3D) {
   return new THREE.Box3().setFromObject(o);
 }
 
-/** Finds one wheel node per corner (by name first, position second). */
-function findWheels(scene: THREE.Object3D, center: THREE.Vector3, carLength: number): (THREE.Object3D | null)[] {
+/** Finds one wheel node per corner: by name first, then by shape and position. */
+function findWheels(scene: THREE.Object3D, box: THREE.Box3): (THREE.Object3D | null)[] {
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  const byName = findWheelsByName(scene, center, size.z);
+  if (byName.every(Boolean)) return byName;
+  const byShape = findWheelsByShape(scene, box, byName);
+  return byName.map((w, i) => w ?? byShape[i]);
+}
+
+/**
+ * Many downloaded models have generic node names ("Object_42"). A wheel is a
+ * roughly round (y ≈ z), narrow (x small) part sitting low in a corner.
+ */
+function findWheelsByShape(scene: THREE.Object3D, box: THREE.Box3, known: (THREE.Object3D | null)[]): (THREE.Object3D | null)[] {
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  const taken = new Set<THREE.Object3D>();
+  for (const k of known) k?.traverse((o) => taken.add(o));
+  const meshes: { m: THREE.Mesh; c: THREE.Vector3; s: THREE.Vector3 }[] = [];
+  scene.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh || taken.has(m)) return;
+    const b = new THREE.Box3().setFromObject(m);
+    if (b.isEmpty()) return;
+    meshes.push({ m, c: b.getCenter(new THREE.Vector3()), s: b.getSize(new THREE.Vector3()) });
+  });
+  const corner = (c: THREE.Vector3) => (c.z > center.z ? 0 : 2) + (c.x > center.x ? 0 : 1);
+  const out: (THREE.Object3D | null)[] = [null, null, null, null];
+  for (let i = 0; i < 4; i++) {
+    if (known[i]) continue;
+    // the tyre: biggest round, low, outboard part in this corner
+    let tyre: (typeof meshes)[number] | null = null;
+    for (const k of meshes) {
+      if (corner(k.c) !== i) continue;
+      const d = Math.max(k.s.y, k.s.z);
+      const round = Math.abs(k.s.y - k.s.z) < d * 0.25;
+      const narrow = k.s.x < d * 0.75;
+      const low = k.c.y - box.min.y < size.y * 0.45;
+      const outboard = Math.abs(k.c.x - center.x) > size.x * 0.2 && Math.abs(k.c.z - center.z) > size.z * 0.15;
+      if (round && narrow && low && outboard && d > size.z * 0.08 && d < size.z * 0.3 && (!tyre || d > Math.max(tyre.s.y, tyre.s.z))) tyre = k;
+    }
+    if (!tyre) continue;
+    // everything concentric with it (rim, spokes, disc, bolts) belongs to the wheel
+    const r = Math.max(tyre.s.y, tyre.s.z) / 2;
+    const group = new THREE.Group();
+    group.name = `wheel_auto_${i}`;
+    scene.add(group);
+    scene.updateMatrixWorld(true);
+    for (const k of meshes) {
+      if (corner(k.c) !== i || taken.has(k.m)) continue;
+      const concentric = Math.hypot(k.c.y - tyre.c.y, k.c.z - tyre.c.z) < r * 0.35 && Math.abs(k.c.x - tyre.c.x) < r && Math.max(k.s.y, k.s.z) <= r * 2.05;
+      if (!concentric) continue;
+      group.attach(k.m);
+      taken.add(k.m);
+    }
+    out[i] = group;
+  }
+  return out;
+}
+
+function findWheelsByName(scene: THREE.Object3D, center: THREE.Vector3, carLength: number): (THREE.Object3D | null)[] {
   const cands: { o: THREE.Object3D; c: THREE.Vector3; size: number }[] = [];
   scene.traverse((o) => {
     if (o === scene || !WHEEL_RE.test(o.name) || NOT_WHEEL_RE.test(o.name)) return;
@@ -167,6 +231,28 @@ function frontIsNegativeZ(wheels: (THREE.Object3D | null)[], center: THREE.Vecto
     const z = worldBox(w).getCenter(tmpV).z - center.z;
     votes += front ? Math.sign(z) : -Math.sign(z);
   }
+  if (votes !== 0) return votes < 0;
+  return null;
+}
+
+const FRONT_PART_RE = /head.?l|headlamp|grill|grille|bonnet|hood|windshield|windscreen|wiper|splitter|radiator|front/i;
+const REAR_PART_RE = /tail|rear|exhaust|muffler|trunk|\bboot\b|diffuser|spoiler|brake.?light|back.?light/i;
+
+/** Fallback: which end holds headlights/grille vs. tail lights/exhausts. */
+function frontFromParts(scene: THREE.Object3D, center: THREE.Vector3): boolean | null {
+  let votes = 0;
+  scene.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    const mats = Array.isArray(m.material) ? m.material : [m.material];
+    const name = `${m.name} ${m.parent?.name ?? ''} ${mats.map((x) => x.name).join(' ')}`;
+    const f = FRONT_PART_RE.test(name);
+    const r = REAR_PART_RE.test(name);
+    if (f === r) return;
+    const z = worldBox(m).getCenter(tmpV).z - center.z;
+    if (Math.abs(z) < 0.3) return;
+    votes += (f ? 1 : -1) * Math.sign(z);
+  });
   if (votes === 0) return null;
   return votes < 0;
 }
@@ -195,8 +281,8 @@ export function prepareRig(source: THREE.Group, paint: string, opts: ModelOption
   }
   // 3) front towards +z
   let center = box.getCenter(new THREE.Vector3());
-  let wheelNodes = findWheels(holder, center, size.z);
-  const negFront = frontIsNegativeZ(wheelNodes, center);
+  const namedWheels = findWheelsByName(holder, center, size.z);
+  const negFront = frontIsNegativeZ(namedWheels, center) ?? frontFromParts(holder, center);
   if (negFront !== !!opts.flip && (negFront !== null || opts.flip)) {
     model.rotation.y += Math.PI;
     holder.updateMatrixWorld(true);
@@ -211,7 +297,7 @@ export function prepareRig(source: THREE.Group, paint: string, opts: ModelOption
   box = worldBox(holder);
   size = box.getSize(new THREE.Vector3());
   center = box.getCenter(new THREE.Vector3());
-  wheelNodes = findWheels(holder, center, size.z);
+  const wheelNodes = findWheels(holder, box);
 
   const root = new THREE.Group();
   const body = new THREE.Group();
@@ -221,6 +307,7 @@ export function prepareRig(source: THREE.Group, paint: string, opts: ModelOption
   // 5) materials: clone everything we will animate or recolour
   const paintMaterials: THREE.MeshPhysicalMaterial[] = [];
   const tailMaterials: THREE.MeshStandardMaterial[] = [];
+  const headMaterials: THREE.MeshStandardMaterial[] = [];
   const bodyMaterials: THREE.Material[] = [];
   const wheelSet = new Set<THREE.Object3D>();
   for (const w of wheelNodes) w?.traverse((o) => wheelSet.add(o));
@@ -233,17 +320,30 @@ export function prepareRig(source: THREE.Group, paint: string, opts: ModelOption
       const name = `${m.name} ${mat.name}`;
       if (wheelSet.has(m)) return mat;
       if (TAIL_RE.test(name)) {
-        const t = new THREE.MeshStandardMaterial({ color: '#ff1a3c', emissive: '#ff1a3c', emissiveIntensity: 0.6, roughness: 0.2 });
+        // keep the model's own lens texture when it has one, just drive its glow
+        const src = mat as THREE.MeshStandardMaterial;
+        const t = src.isMeshStandardMaterial ? src.clone() : new THREE.MeshStandardMaterial({ color: '#ff1a3c', roughness: 0.2 });
+        if (!t.emissive || t.emissive.getHex() === 0) t.emissive = new THREE.Color('#ff1a3c');
+        t.emissiveIntensity = 0.6;
         tailMaterials.push(t);
         bodyMaterials.push(t);
         return t;
       }
-      if (GLASS_RE.test(name) && !NOT_GLASS_RE.test(name)) {
+      if (HEAD_RE.test(name) && (mat as THREE.MeshStandardMaterial).isMeshStandardMaterial) {
+        const h = (mat as THREE.MeshStandardMaterial).clone();
+        h.emissive = new THREE.Color('#fff6e8');
+        h.emissiveIntensity = 0;
+        headMaterials.push(h);
+        bodyMaterials.push(h);
+        return h;
+      }
+      const alreadyGlass = mat.transparent || ((mat as THREE.MeshPhysicalMaterial).transmission ?? 0) > 0;
+      if (GLASS_RE.test(name) && !NOT_GLASS_RE.test(name) && !alreadyGlass) {
         const g = new THREE.MeshPhysicalMaterial({ color: '#0d1118', metalness: 0.25, roughness: 0.02, transparent: true, opacity: 0.55, clearcoat: 1 });
         bodyMaterials.push(g);
         return g;
       }
-      if (PAINT_RE.test(name) && !NOT_PAINT_RE.test(name)) {
+      if (paint !== 'original' && PAINT_RE.test(name) && !NOT_PAINT_RE.test(name)) {
         const src = mat as THREE.MeshStandardMaterial;
         const p = new THREE.MeshPhysicalMaterial({
           // automotive paint: coloured base coat under a glossy clear coat
@@ -352,6 +452,8 @@ export function prepareRig(source: THREE.Group, paint: string, opts: ModelOption
     paintMaterials,
     brakeMaterials,
     tailMaterials,
+    headMaterials,
+    frontZ: box.max.z,
     bodyMaterials,
     tireMaterials,
   };

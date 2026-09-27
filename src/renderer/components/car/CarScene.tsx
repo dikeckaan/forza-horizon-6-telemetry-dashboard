@@ -1,6 +1,8 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { ContactShadows, Environment, OrbitControls } from '@react-three/drei';
+import { ContactShadows, Environment, MeshReflectorMaterial, OrbitControls } from '@react-three/drei';
+import { Bloom, EffectComposer, N8AO, ToneMapping, Vignette } from '@react-three/postprocessing';
+import { ToneMappingMode } from 'postprocessing';
 import * as THREE from 'three';
 import { store } from '../../store';
 import { fToC } from '../../../shared/units';
@@ -94,6 +96,30 @@ function Ground({ motion, children }: { motion: React.MutableRefObject<Motion>; 
 
 const RIDE = 0.1;
 
+export type SceneId = 'day' | 'sunset' | 'night';
+
+interface ScenePreset {
+  hdr: string;
+  sun: { position: [number, number, number]; color: string; intensity: number };
+  fog: [string, number, number];
+  env: number;
+  background: number;
+  road: string;
+  /** how mirror-like the wet asphalt is */
+  wet: number;
+  bloom: number;
+  exposure: number;
+  lights: boolean;
+  /** turns the sky so its sun sits where we want it */
+  skyYaw: number;
+}
+
+const SCENES: Record<SceneId, ScenePreset> = {
+  day: { hdr: './env/day.hdr', sun: { position: [-6, 12, 5], color: '#fff4e2', intensity: 2.6 }, fog: ['#b9c6d3', 40, 160], env: 1, background: 1, road: '#4a4c52', wet: 0.35, bloom: 0.25, exposure: 0.95, lights: false, skyYaw: 0 },
+  sunset: { hdr: './env/sunset.hdr', sun: { position: [6, 4, 22], color: '#ffae6b', intensity: 2.2 }, fog: ['#d9a07c', 30, 140], env: 1.1, background: 1, road: '#3f3b3a', wet: 0.7, bloom: 0.55, exposure: 1.0, lights: true, skyYaw: Math.PI },
+  night: { hdr: './env/night.hdr', sun: { position: [5, 12, 4], color: '#9fb4ff', intensity: 0.25 }, fog: ['#07090f', 25, 120], env: 0.28, background: 0.22, road: '#1d1f24', wet: 1, bloom: 0.7, exposure: 1.0, lights: true, skyYaw: 0 },
+};
+
 // ---------- model loading ----------
 
 function useRig(model: ModelDef, paint: string, flip: boolean) {
@@ -118,9 +144,9 @@ function useRig(model: ModelDef, paint: string, flip: boolean) {
     };
     // paint is applied separately below so recolouring does not rebuild the rig
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model.id, model.url, flip]);
+  }, [model.id, model.url, flip, paint === 'original']);
   useEffect(() => {
-    rig?.paintMaterials.forEach((m) => m.color.set(paint));
+    if (paint !== 'original') rig?.paintMaterials.forEach((m) => m.color.set(paint));
   }, [rig, paint]);
   return { rig, error };
 }
@@ -271,37 +297,116 @@ function Exhaust({ rig }: { rig: CarRig }) {
 // ---------- road ----------
 
 const ROAD = 240;
-/** metres covered by one repeat of the asphalt texture */
-const TILE = 3;
+/** metres covered by one repeat of the fine asphalt grain */
+const TILE = 2;
 
-function useAsphalt() {
-  return useMemo(() => {
-    const loader = new THREE.TextureLoader();
-    const load = (name: string, srgb: boolean) => {
-      const t = loader.load(`./textures/asphalt_${name}.jpg`);
-      t.wrapS = t.wrapT = THREE.RepeatWrapping;
-      t.repeat.set(ROAD / TILE, ROAD / TILE);
-      t.anisotropy = 16;
-      if (srgb) t.colorSpace = THREE.SRGBColorSpace;
-      return t;
-    };
-    return { map: load('diff', true), normalMap: load('nor_gl', false), roughnessMap: load('rough', false) };
-  }, []);
+/** Isotropic asphalt grain (no cracks or streaks, so it never hints a direction). */
+function grainTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#5a5a5d';
+  g.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 26000; i++) {
+    const v = 50 + Math.random() * 70;
+    const r = Math.random() < 0.08 ? 1.6 + Math.random() * 1.4 : 0.6 + Math.random() * 0.9;
+    g.fillStyle = `rgb(${v},${v},${v + 3})`;
+    g.beginPath();
+    g.arc(Math.random() * 512, Math.random() * 512, r, 0, Math.PI * 2);
+    g.fill();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(ROAD / TILE, ROAD / TILE);
+  t.anisotropy = 16;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
 }
 
-function Road({ motion }: { motion: React.MutableRefObject<Motion> }) {
-  const tex = useAsphalt();
+/** Large soft blotches: where the road is wetter it reflects more. */
+function puddleTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#c8c8c8';
+  g.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 40; i++) {
+    const x = Math.random() * 256;
+    const y = Math.random() * 256;
+    const r = 12 + Math.random() * 40;
+    const grd = g.createRadialGradient(x, y, 0, x, y, r);
+    grd.addColorStop(0, 'rgba(40,40,40,0.9)');
+    grd.addColorStop(1, 'rgba(40,40,40,0)');
+    g.fillStyle = grd;
+    g.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(ROAD / 30, ROAD / 30);
+  return t;
+}
+
+function Road({ motion, preset }: { motion: React.MutableRefObject<Motion>; preset: ScenePreset }) {
+  const map = useMemo(grainTexture, []);
+  const rough = useMemo(puddleTexture, []);
   const ref = useRef<THREE.Mesh>(null);
   useFrame(() => {
-    // stays under the car but only moves in whole tiles, so the asphalt is fixed to the world
+    // stays under the car but only moves by whole puddle tiles, so the surface is fixed to the world
     const m = motion.current;
-    ref.current?.position.set(Math.round(m.x / TILE) * TILE, 0, Math.round(m.z / TILE) * TILE);
+    ref.current?.position.set(Math.round(m.x / 30) * 30, 0, Math.round(m.z / 30) * 30);
   });
   return (
     <mesh ref={ref} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
       <planeGeometry args={[ROAD, ROAD]} />
-      <meshStandardMaterial {...tex} color="#707070" normalScale={new THREE.Vector2(0.8, 0.8)} roughness={1} metalness={0} envMapIntensity={0.6} />
+      <MeshReflectorMaterial
+        map={map}
+        roughnessMap={rough}
+        color={preset.road}
+        roughness={1}
+        metalness={0.1}
+        blur={[500, 200]}
+        resolution={1536}
+        mixBlur={1}
+        mixStrength={preset.wet * 3}
+        mixContrast={1}
+        depthScale={1.1}
+        minDepthThreshold={0.4}
+        maxDepthThreshold={1.3}
+        mirror={0}
+      />
     </mesh>
+  );
+}
+
+// ---------- headlights ----------
+
+function Headlights({ rig, on }: { rig: CarRig; on: boolean }) {
+  const targets = useMemo(() => [new THREE.Object3D(), new THREE.Object3D()], []);
+  const xs = [rig.width * 0.32, -rig.width * 0.32];
+  useFrame(() => {
+    for (const h of rig.headMaterials) h.emissiveIntensity = on ? 1.6 : 0.1;
+  });
+  return (
+    <group>
+      {xs.map((x, i) => (
+        <group key={x}>
+          <primitive object={targets[i]} position={[x * 1.4, 0, rig.frontZ + 18]} />
+          {on && (
+            <spotLight
+              position={[x, 0.65, rig.frontZ - 0.1]}
+              target={targets[i]}
+              angle={0.42}
+              penumbra={0.6}
+              intensity={28}
+              distance={45}
+              decay={1.4}
+              color="#fff3df"
+              castShadow={false}
+            />
+          )}
+        </group>
+      ))}
+    </group>
   );
 }
 
@@ -498,27 +603,65 @@ function CameraRig({ mode, motion, length }: { mode: CameraMode; motion: React.M
   return mode === 'orbit' ? <OrbitControls makeDefault target={[0, 0.55, 0]} enablePan={false} minDistance={3.5} maxDistance={16} maxPolarAngle={Math.PI / 2.05} /> : null;
 }
 
-export function CarScene({ model, paint, flip, xray, exaggerate, camera }: { model: ModelDef; paint: string; flip: boolean; xray: boolean; exaggerate: number; camera: CameraMode }) {
+function PostFX({ preset }: { preset: ScenePreset }) {
+  return (
+    <EffectComposer multisampling={4}>
+      <N8AO aoRadius={0.6} intensity={2.2} distanceFalloff={0.6} quality="medium" halfRes />
+      <Bloom mipmapBlur intensity={preset.bloom} luminanceThreshold={0.92} luminanceSmoothing={0.15} />
+      <Vignette offset={0.28} darkness={0.55} />
+      <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+    </EffectComposer>
+  );
+}
+
+export function CarScene({
+  model,
+  paint,
+  flip,
+  xray,
+  exaggerate,
+  camera,
+  scene = 'day',
+  fx = true,
+}: {
+  model: ModelDef;
+  paint: string;
+  flip: boolean;
+  xray: boolean;
+  exaggerate: number;
+  camera: CameraMode;
+  scene?: SceneId;
+  fx?: boolean;
+}) {
   const { rig, error } = useRig(model, paint, flip);
   const motion = useRef<Motion>(newMotion());
+  const preset = SCENES[scene];
   return (
     <>
       <Canvas
+        key={fx ? 'fx' : 'plain'}
         shadows="soft"
         dpr={[1, 2]}
         camera={{ position: [1.1, 2.0, -6.1], fov: 40, far: 2000 }}
-        gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 0.95 }}
+        gl={{ antialias: !fx, toneMapping: fx ? THREE.NoToneMapping : THREE.ACESFilmicToneMapping, toneMappingExposure: preset.exposure }}
       >
-        {/* haze that matches the horizon so the road melts into the sky */}
-        <fog attach="fog" args={['#b9c6d3', 40, 150]} />
+        <fog attach="fog" args={preset.fog} />
         <Suspense fallback={null}>
-          <Environment files="./env/sky.hdr" background backgroundBlurriness={0.02} environmentIntensity={1} backgroundIntensity={1} />
+          <Environment
+            key={scene}
+            files={preset.hdr}
+            background
+            backgroundBlurriness={0.02}
+            environmentIntensity={preset.env}
+            backgroundIntensity={preset.background}
+            environmentRotation={[0, preset.skyYaw, 0]}
+            backgroundRotation={[0, preset.skyYaw, 0]}
+          />
         </Suspense>
-        {/* the sun: matches the HDRI's key light, gives crisp shadows under the car */}
         <directionalLight
-          position={[-6, 12, 5]}
-          intensity={2.6}
-          color="#fff4e2"
+          position={preset.sun.position}
+          intensity={preset.sun.intensity}
+          color={preset.sun.color}
           castShadow
           shadow-mapSize={[2048, 2048]}
           shadow-bias={-0.0004}
@@ -528,9 +671,14 @@ export function CarScene({ model, paint, flip, xray, exaggerate, camera }: { mod
           shadow-camera-bottom={-7}
         />
         <PoseTracker motion={motion} />
-        {rig && <Car rig={rig} xray={xray} exaggerate={exaggerate} />}
+        {rig && (
+          <>
+            <Car rig={rig} xray={xray} exaggerate={exaggerate} />
+            <Headlights rig={rig} on={preset.lights} />
+          </>
+        )}
         <Ground motion={motion}>
-          <Road motion={motion} />
+          <Road motion={motion} preset={preset} />
           {rig && (
             <>
               <SkidMarks rig={rig} motion={motion} />
@@ -538,8 +686,9 @@ export function CarScene({ model, paint, flip, xray, exaggerate, camera }: { mod
             </>
           )}
         </Ground>
-        <ContactShadows position={[0, 0.004, 0]} opacity={0.75} scale={10} blur={2.4} far={1.6} color="#000" />
+        <ContactShadows position={[0, 0.004, 0]} opacity={0.8} scale={10} blur={2.4} far={1.6} color="#000" />
         <CameraRig mode={camera} motion={motion} length={rig?.length ?? 4.5} />
+        {fx && <PostFX preset={preset} />}
       </Canvas>
       {!rig && !error && (
         <div className="empty" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>

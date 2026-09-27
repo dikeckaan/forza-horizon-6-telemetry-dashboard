@@ -67,6 +67,10 @@ export const FALLBACK_SETTINGS: Settings = {
   carPaints: {},
   customModels: [],
   modelFlips: {},
+  sketchfab: { connected: false, account: '' },
+  autoModels: true,
+  scene: 'day',
+  fx: true,
 };
 
 export interface SettingsCtx {

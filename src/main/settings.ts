@@ -16,6 +16,10 @@ export const DEFAULT_SETTINGS: Settings = {
   carPaints: {},
   customModels: [],
   modelFlips: {},
+  sketchfab: { connected: false, account: '' },
+  autoModels: true,
+  scene: 'day',
+  fx: true,
 };
 
 const file = () => join(app.getPath('userData'), 'settings.json');
@@ -28,6 +32,7 @@ export function loadSettings(): Settings {
       ...raw,
       units: { ...DEFAULT_SETTINGS.units, ...raw.units },
       forward: { ...DEFAULT_SETTINGS.forward, ...raw.forward },
+      sketchfab: { ...DEFAULT_SETTINGS.sketchfab, ...raw.sketchfab },
     };
   } catch {
     return structuredClone(DEFAULT_SETTINGS);

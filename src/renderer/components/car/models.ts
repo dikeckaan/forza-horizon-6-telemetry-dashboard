@@ -6,6 +6,11 @@ export interface ModelDef {
   label: string;
   /** bundled file under public/models, or null for user-imported models */
   url: string | null;
+  /** keep the model's own paint (real replicas); built-ins get recoloured */
+  original?: boolean;
+  author?: string;
+  license?: string;
+  viewerUrl?: string;
 }
 
 export const BUILTIN_MODELS: ModelDef[] = [
@@ -29,7 +34,10 @@ function guessModel(f: Frame): string {
 export type ModelSource = 'user' | 'learned' | 'guess';
 
 export function allModels(s: Settings): ModelDef[] {
-  return [...BUILTIN_MODELS, ...s.customModels.map((m) => ({ id: m.id, label: m.name, url: null }))];
+  return [
+    ...BUILTIN_MODELS,
+    ...s.customModels.map((m) => ({ id: m.id, label: m.name, url: null, original: true, author: m.author, license: m.license, viewerUrl: m.viewerUrl })),
+  ];
 }
 
 /** user choice for this car → choice learned for its game category → guess */

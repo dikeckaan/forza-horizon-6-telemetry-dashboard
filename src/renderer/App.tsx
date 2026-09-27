@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 import type { Settings, Status } from '../shared/ipc';
 import { carClassName, CLASS_COLORS, drivetrainName, fmtDuration } from '../shared/units';
+import { carName as nameOf } from '../shared/cars';
 import { FALLBACK_SETTINGS, SettingsContext, StatusContext, useFrame, useStale, useStatus, useSettings } from './hooks';
 import { replay } from './replay';
+import { useAutoModel } from './autoModel';
 import { store } from './store';
 import { IconCar, IconChart, IconFlag, IconFolder, IconGauge, IconList, IconMap, IconPause, IconPlay, IconSettings, IconX } from './components/icons';
 import { CockpitPage } from './pages/Cockpit';
@@ -62,6 +64,8 @@ export function App() {
     setSettings((s) => ({ ...s, ...patch }));
     window.fh?.setSettings(patch).then(setSettings);
   }, []);
+  const carOrdinal = useSyncExternalStore(store.subscribe.bind(store), () => (store.raceOn || store.frame ? (store.frame?.carOrdinal ?? 0) : 0));
+  useAutoModel(replay.active ? 0 : carOrdinal, settings, update);
 
   // keyboard: 1..8 switch pages, space toggles replay
   useEffect(() => {
@@ -124,7 +128,7 @@ function TitleBar() {
   const stale = useStale();
   const replayActive = useSyncExternalStore(replay.subscribe.bind(replay), () => replay.active);
   const cls = carClassName(f.carClass);
-  const carName = settings.carNames[String(f.carOrdinal)];
+  const carName = nameOf(f.carOrdinal, settings.carNames);
 
   let conn: ReactNode;
   if (replayActive) conn = <><span className="dot warn" /> Kayıt oynatılıyor</>;

@@ -1,6 +1,10 @@
 import { lazy, Suspense, useState } from 'react';
 import { useFrame, useSettings, useUnits } from '../hooks';
 import { allModels, autoPaint, PAINTS, resolveModel, type ModelSource } from '../components/car/models';
+import { Library } from '../components/car/Library';
+import { useDownloadState } from '../autoModel';
+import { carName as nameOf, searchName } from '../../shared/cars';
+import type { Settings } from '../../shared/ipc';
 import type { CameraMode } from '../components/car/CarScene';
 import { tempLabel, tempOf, fToC, speedOf, speedLabel } from '../../shared/units';
 import type { Frame } from '../../shared/packet';
@@ -24,16 +28,20 @@ export function CarPage() {
   const drift = f.speed > 3 ? -deg(Math.atan2(f.velocityX, Math.max(0.1, f.velocityZ))) : 0;
   const { model, source } = resolveModel(f, settings);
   const ord = String(f.carOrdinal);
-  const paint = settings.carPaints[ord] ?? autoPaint(f.carOrdinal);
+  const paint = settings.carPaints[ord] ?? (model.original ? 'original' : autoPaint(f.carOrdinal));
   const flip = !!settings.modelFlips[model.id];
+  const [library, setLibrary] = useState(false);
+  const dl = useDownloadState();
+  const realName = nameOf(f.carOrdinal, settings.carNames);
 
   const chooseModel = (id: string | null) => {
     const carModels = { ...settings.carModels };
     const categoryModels = { ...settings.categoryModels };
     if (id) {
       carModels[ord] = id;
-      // teach the category so other cars of the same kind get it too
-      if (f.horizonCarCategory) categoryModels[String(f.horizonCarCategory)] = id;
+      // a generic built-in body is a fair guess for the whole game category; a replica is not
+      const generic = allModels(settings).find((m) => m.id === id)?.url;
+      if (generic && f.horizonCarCategory) categoryModels[String(f.horizonCarCategory)] = id;
     } else delete carModels[ord];
     update({ carModels, categoryModels });
     setPicker(false);
@@ -73,7 +81,7 @@ export function CarPage() {
         <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 60, zIndex: 1, pointerEvents: 'none', background: 'linear-gradient(rgba(7,8,11,0), rgba(7,8,11,.7))' }} />
         <div style={{ position: 'absolute', inset: 0 }}>
           <Suspense fallback={<div className="empty">3D yükleniyor…</div>}>
-            <CarScene model={model} paint={paint} flip={flip} xray={xray} exaggerate={ex} camera={cam} />
+            <CarScene model={model} paint={paint} flip={flip} xray={xray} exaggerate={ex} camera={cam} scene={settings.scene} fx={settings.fx} />
           </Suspense>
         </div>
 
@@ -102,6 +110,15 @@ export function CarPage() {
                   </div>
                 ))}
                 <div style={{ height: 1, background: 'var(--line)', margin: '4px 0' }} />
+                <MenuItem
+                  active={false}
+                  onClick={() => {
+                    setPicker(false);
+                    setLibrary(true);
+                  }}
+                >
+                  🔎 Sketchfab kütüphanesi{realName ? ` · ${searchName(realName)}` : ''}…
+                </MenuItem>
                 <MenuItem active={false} onClick={importModel}>
                   + Kendi modelini yükle (.glb)…
                 </MenuItem>
@@ -114,7 +131,16 @@ export function CarPage() {
               </div>
             )}
           </div>
-          <div style={{ display: 'flex', gap: 5, padding: '0 4px' }}>
+          <div style={{ display: 'flex', gap: 5, padding: '0 4px', alignItems: 'center' }}>
+            {model.original && (
+              <button
+                onClick={() => update({ carPaints: { ...settings.carPaints, [ord]: 'original' } })}
+                title="Modelin kendi boyası"
+                style={{ height: 20, padding: '0 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, cursor: 'pointer', color: '#fff', background: 'rgba(7,8,11,.7)', border: paint === 'original' ? '2px solid #fff' : '1px solid rgba(255,255,255,.3)' }}
+              >
+                Orijinal
+              </button>
+            )}
             {PAINTS.map((p) => (
               <button
                 key={p}
@@ -124,7 +150,23 @@ export function CarPage() {
               />
             ))}
           </div>
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <div className="seg" title="Sahne">
+              {(
+                [
+                  ['day', 'Gündüz'],
+                  ['sunset', 'Gün batımı'],
+                  ['night', 'Gece'],
+                ] as [Settings['scene'], string][]
+              ).map(([k, l]) => (
+                <button key={k} className={settings.scene === k ? 'on' : ''} onClick={() => update({ scene: k })}>
+                  {l}
+                </button>
+              ))}
+            </div>
+            <button className={`btn ${settings.fx ? 'primary' : ''}`} onClick={() => update({ fx: !settings.fx })} title="Parlama, ortam gölgesi, sinematik görüntü (zayıf ekran kartlarında kapat)">
+              Efektler
+            </button>
             <div className="seg">
               {(
                 [
@@ -153,6 +195,18 @@ export function CarPage() {
             </div>
           </div>
         </div>
+        {(dl.status === 'searching' || dl.status === 'downloading') && dl.ordinal === f.carOrdinal && (
+          <div className="panel" style={{ position: 'absolute', left: '50%', bottom: 44, transform: 'translateX(-50%)', zIndex: 3, minWidth: 320, background: 'rgba(7,8,11,.85)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
+              <span>{dl.status === 'searching' ? `${realName ?? 'Araç'} için model aranıyor…` : `${dl.label} indiriliyor…`}</span>
+              {dl.status === 'downloading' && <span className="mono">{dl.total ? Math.round((dl.received / dl.total) * 100) : 0}%</span>}
+            </div>
+            <div style={{ height: 5, borderRadius: 5, background: '#141821', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: dl.status === 'downloading' && dl.total ? `${(dl.received / dl.total) * 100}%` : '30%', background: 'linear-gradient(90deg,#ff2e88,#ff7a2e)' }} />
+            </div>
+          </div>
+        )}
+        {library && <Library ordinal={f.carOrdinal} carName={realName} initialQuery={realName ? searchName(realName) : 'sports car'} onClose={() => setLibrary(false)} />}
         <div style={{ position: 'absolute', bottom: 12, left: 14, right: 14, zIndex: 2, display: 'flex', justifyContent: 'space-between', pointerEvents: 'none', color: 'rgba(255,255,255,.72)' }} className="mono">
           <span>{cam === 'orbit' ? 'sürükle: döndür · tekerlek: yakınlaş' : 'zemin ve izler aracın gerçek hareketiyle akar'}</span>
           <span>duman/iz: lastik kayması · kızaran disk: fren ısısı</span>

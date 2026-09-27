@@ -17,11 +17,41 @@ export interface Settings {
   customModels: CustomModel[];
   /** models whose front/back auto-detection was corrected */
   modelFlips: Record<string, boolean>;
+  /** Sketchfab account link (the token itself stays encrypted in the main process) */
+  sketchfab: { connected: boolean; account: string };
+  /** download a matching Sketchfab model automatically when a new car shows up */
+  autoModels: boolean;
+  /** 3D scene look */
+  scene: 'day' | 'sunset' | 'night';
+  /** post-processing (bloom, ambient occlusion…) */
+  fx: boolean;
 }
 
 export interface CustomModel {
   id: string;
   name: string;
+  source?: 'file' | 'sketchfab';
+  uid?: string;
+  author?: string;
+  license?: string;
+  viewerUrl?: string;
+}
+
+export interface SketchfabModel {
+  uid: string;
+  name: string;
+  author: string;
+  license: string;
+  faces: number;
+  glbBytes: number;
+  thumbnail: string;
+  viewerUrl: string;
+}
+
+export interface DownloadProgress {
+  uid: string;
+  received: number;
+  total: number;
 }
 
 export interface Status {
@@ -63,6 +93,13 @@ export interface FhBridge {
   importModel(): Promise<Settings>;
   readModel(id: string): Promise<Uint8Array>;
   deleteModel(id: string): Promise<Settings>;
+  sfConnect(token: string): Promise<Settings>;
+  sfDisconnect(): Promise<Settings>;
+  sfSearch(query: string): Promise<SketchfabModel[]>;
+  /** downloads and registers the model; returns the new settings and the model id */
+  sfDownload(model: SketchfabModel): Promise<{ settings: Settings; id: string }>;
+  onSfProgress(cb: (p: DownloadProgress) => void): () => void;
+  openExternal(url: string): Promise<void>;
   platform: string;
 }
 

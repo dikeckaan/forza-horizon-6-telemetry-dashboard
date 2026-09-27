@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { SessionMeta } from '../../shared/ipc';
 import { carClassName, CLASS_COLORS, fmtDuration, speedLabel, speedOf } from '../../shared/units';
+import { carName } from '../../shared/cars';
 import { useSettings, useStatus, useUnits } from '../hooks';
 import { replay } from '../replay';
 import { IconDownload, IconFolder, IconPlay, IconTrash } from '../components/icons';
@@ -122,7 +123,7 @@ export function SessionsPage({ onOpen }: { onOpen: () => void }) {
                           <span style={{ background: CLASS_COLORS[cls] ?? '#888' }}>{cls}</span>
                           <span>{m.pi}</span>
                         </span>
-                        {settings.carNames[String(m.carOrdinal)] ?? `#${m.carOrdinal}`}
+                        {carName(m.carOrdinal, settings.carNames) ?? `#${m.carOrdinal}`}
                       </span>
                     </td>
                     <td className="r mono">{fmtDuration(m.durationMs)}</td>

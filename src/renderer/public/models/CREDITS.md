@@ -8,5 +8,11 @@
 
 # Environment
 
-- `env/sky.hdr` — "Kloofendal 48d Partly Cloudy (Pure Sky)" by Greg Zaal, Poly Haven (https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky). CC0.
-- `textures/asphalt_*.jpg` — "Asphalt 02" by Poly Haven (https://polyhaven.com/a/asphalt_02). CC0.
+- `env/day.hdr` — "Kloofendal 48d Partly Cloudy (Pure Sky)" by Greg Zaal, Poly Haven (https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky). CC0.
+- `env/sunset.hdr` — "Industrial Sunset (Pure Sky)" by Poly Haven (https://polyhaven.com/a/industrial_sunset_puresky). CC0.
+- `env/night.hdr` — "Shanghai Bund" by Poly Haven (https://polyhaven.com/a/shanghai_bund). CC0.
+
+# Data
+
+- `src/shared/data/fh6-cars.json` — Forza Horizon 6 car ordinal list compiled by HDR
+  (https://gist.github.com/HDR/0659d1717bc61504bf83750628963f4f).

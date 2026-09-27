@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from 'electron';
 import { createSocket, type Socket } from 'node:dgram';
 import { networkInterfaces } from 'node:os';
 import { join } from 'node:path';
@@ -11,6 +11,8 @@ import { DemoSim } from '../shared/demo';
 import type { Settings, Status } from '../shared/ipc';
 import { loadSettings, saveSettings } from './settings';
 import { Recorder, deleteSession, listSessions, sessionToCsv } from './sessions';
+import { checkToken, downloadModel, searchModels } from './sketchfab';
+import type { SketchfabModel } from '../shared/ipc';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 const devUrl = process.env.VITE_DEV_URL;
@@ -25,6 +27,30 @@ let demoTimer: NodeJS.Timeout | null = null;
 const sessionsDir = () => join(app.getPath('userData'), 'sessions');
 const modelsDir = () => join(app.getPath('userData'), 'models');
 const safeId = (id: string) => /^[a-f0-9-]{36}$/.test(id);
+const tokenFile = () => join(app.getPath('userData'), 'sketchfab.token');
+
+// The Sketchfab token never reaches the renderer; it is kept encrypted by the OS keychain when possible.
+function saveToken(token: string | null) {
+  if (!token) {
+    try {
+      unlinkSync(tokenFile());
+    } catch {
+      /* no token stored */
+    }
+    return;
+  }
+  const data = safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(token) : Buffer.from(`plain:${token}`);
+  writeFileSync(tokenFile(), data);
+}
+function loadToken(): string | null {
+  try {
+    const data = readFileSync(tokenFile());
+    if (data.subarray(0, 6).toString() === 'plain:') return data.subarray(6).toString();
+    return safeStorage.decryptString(data);
+  } catch {
+    return null;
+  }
+}
 
 const status: Status = {
   listening: false,
@@ -191,6 +217,38 @@ function registerIpc() {
   ipcMain.handle('models:read', (_e, id: string) => {
     if (!safeId(id)) throw new Error('bad id');
     return new Uint8Array(readFileSync(join(modelsDir(), `${id}.glb`)));
+  });
+  ipcMain.handle('open-external', (_e, url: string) => {
+    if (/^https:\/\/(sketchfab\.com|polyhaven\.com|github\.com)\//.test(url)) return shell.openExternal(url);
+  });
+  ipcMain.handle('sf:connect', async (_e, token: string) => {
+    const account = await checkToken(token.trim());
+    saveToken(token.trim());
+    settings = { ...settings, sketchfab: { connected: true, account } };
+    saveSettings(settings);
+    return settings;
+  });
+  ipcMain.handle('sf:disconnect', () => {
+    saveToken(null);
+    settings = { ...settings, sketchfab: { connected: false, account: '' } };
+    saveSettings(settings);
+    return settings;
+  });
+  ipcMain.handle('sf:search', (_e, q: string) => searchModels(String(q).slice(0, 120)));
+  ipcMain.handle('sf:download', async (_e, m: SketchfabModel) => {
+    const token = loadToken();
+    if (!token) throw new Error('Önce Ayarlar’dan Sketchfab hesabını bağla');
+    if (!/^[a-f0-9]{32}$/.test(m.uid)) throw new Error('bad uid');
+    const existing = settings.customModels.find((c) => c.uid === m.uid);
+    if (existing) return { settings, id: existing.id };
+    const id = randomUUID();
+    await downloadModel(m.uid, token, modelsDir(), id, (received, total) => win?.webContents.send('sf:progress', { uid: m.uid, received, total }));
+    settings = {
+      ...settings,
+      customModels: [...settings.customModels, { id, name: m.name, source: 'sketchfab', uid: m.uid, author: m.author, license: m.license, viewerUrl: m.viewerUrl }],
+    };
+    saveSettings(settings);
+    return { settings, id };
   });
   ipcMain.handle('models:delete', (_e, id: string) => {
     if (!safeId(id)) throw new Error('bad id');

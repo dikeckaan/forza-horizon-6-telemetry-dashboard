@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import type { FhBridge, Status } from '../shared/ipc';
+import type { DownloadProgress, FhBridge, Status } from '../shared/ipc';
 
 const bridge: FhBridge = {
   onPacket(cb) {
@@ -22,6 +22,16 @@ const bridge: FhBridge = {
   importModel: () => ipcRenderer.invoke('models:import'),
   readModel: (id) => ipcRenderer.invoke('models:read', id),
   deleteModel: (id) => ipcRenderer.invoke('models:delete', id),
+  sfConnect: (token) => ipcRenderer.invoke('sf:connect', token),
+  sfDisconnect: () => ipcRenderer.invoke('sf:disconnect'),
+  sfSearch: (q) => ipcRenderer.invoke('sf:search', q),
+  sfDownload: (m) => ipcRenderer.invoke('sf:download', m),
+  onSfProgress(cb) {
+    const h = (_e: IpcRendererEvent, p: DownloadProgress) => cb(p);
+    ipcRenderer.on('sf:progress', h);
+    return () => ipcRenderer.off('sf:progress', h);
+  },
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
   platform: process.platform,
 };
 

@@ -28,7 +28,58 @@ function fakeCar(frontYaw: number, frontAtNegZ = false) {
   return g;
 }
 
+/** Sketchfab-style export: generic names, front at -z, only parts hint at the front. */
+function genericCar() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.9, 4.4), new THREE.MeshStandardMaterial({ name: 'Material_3' }));
+  body.name = 'Object_2';
+  body.position.y = 0.8;
+  g.add(body);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.1, 0.1), new THREE.MeshStandardMaterial({ name: 'headlight_glass' }));
+  head.name = 'Object_7';
+  head.position.set(0, 0.8, -2.2);
+  g.add(head);
+  const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.2), new THREE.MeshStandardMaterial({ name: 'exhaust_chrome' }));
+  pipe.name = 'Object_9';
+  pipe.position.set(0.4, 0.3, 2.2);
+  g.add(pipe);
+  let n = 20;
+  for (const [x, z] of [[0.85, 1.3], [-0.85, 1.3], [0.85, -1.3], [-0.85, -1.3]]) {
+    const tyreGeo = new THREE.CylinderGeometry(0.34, 0.34, 0.25, 32);
+    tyreGeo.rotateZ(Math.PI / 2);
+    const tyre = new THREE.Mesh(tyreGeo, new THREE.MeshStandardMaterial({ name: 'Material_7' }));
+    tyre.name = `Object_${n++}`;
+    tyre.position.set(x, 0.34, z);
+    const rimGeo = new THREE.CylinderGeometry(0.24, 0.24, 0.2, 24);
+    rimGeo.rotateZ(Math.PI / 2);
+    const rim = new THREE.Mesh(rimGeo, new THREE.MeshStandardMaterial({ name: 'Material_8' }));
+    rim.name = `Object_${n++}`;
+    rim.position.set(x, 0.34, z);
+    g.add(tyre, rim);
+  }
+  return g;
+}
+
 describe('prepareRig', () => {
+  it('finds wheels by shape and the front by its parts on generic exports', () => {
+    const rig = prepareRig(genericCar(), 'original');
+    rig.root.updateMatrixWorld(true);
+    for (const w of rig.wheels) {
+      const meshes: THREE.Object3D[] = [];
+      w.spin.traverse((o) => (o as THREE.Mesh).isMesh && meshes.push(o));
+      expect(meshes.length).toBe(2); // tyre + rim spin together
+    }
+    // headlights were at -z in the file → the car must be turned so they end up at +z
+    let headZ = 0;
+    rig.root.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (m.isMesh && rig.headMaterials.includes(m.material as THREE.MeshStandardMaterial)) headZ = new THREE.Box3().setFromObject(m).getCenter(new THREE.Vector3()).z;
+    });
+    expect(headZ).toBeGreaterThan(1.5);
+    expect(rig.headMaterials.length).toBe(1);
+    expect(rig.paintMaterials.length).toBe(0); // original paint kept
+  });
+
   it('straightens pre-steered front wheels', () => {
     const rig = prepareRig(fakeCar(0.52), '#f00');
     for (const w of rig.wheels) {

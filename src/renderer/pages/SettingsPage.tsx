@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { useFrame, useSettings, useStatus } from '../hooks';
 import type { UnitPrefs } from '../../shared/units';
+import { carCount, knownCarName } from '../../shared/cars';
 
 export function SettingsPage() {
   const { settings, update } = useSettings();
@@ -10,6 +11,8 @@ export function SettingsPage() {
   const [fwdHost, setFwdHost] = useState(settings.forward.host);
   const [fwdPort, setFwdPort] = useState(String(settings.forward.port));
   const [carName, setCarName] = useState('');
+  const [sfToken, setSfToken] = useState('');
+  const [sfErr, setSfErr] = useState<string | null>(null);
   const units = settings.units;
   const setUnit = <K extends keyof UnitPrefs>(k: K, v: UnitPrefs[K]) => update({ units: { ...units, [k]: v } });
 
@@ -63,6 +66,54 @@ export function SettingsPage() {
         )}
       </Section>
 
+      <Section title="3D araç modelleri (Sketchfab)">
+        <p className="muted" style={{ marginTop: 0, lineHeight: 1.5 }}>
+          Sürdüğün aracın gerçek 3D modeli Sketchfab’dan bulunup indirilir. İndirmek için ücretsiz bir Sketchfab hesabının API anahtarı gerekir
+          (sketchfab.com › Settings › Password &amp; API). Anahtar bu bilgisayarda şifreli saklanır.
+        </p>
+        {settings.sketchfab.connected ? (
+          <Row label="Hesap" hint="Bağlı">
+            <span>{settings.sketchfab.account}</span>
+            <button
+              className="btn ghost danger"
+              onClick={async () => {
+                const next = await window.fh?.sfDisconnect();
+                if (next) update({ sketchfab: next.sketchfab });
+              }}
+            >
+              Bağlantıyı kes
+            </button>
+          </Row>
+        ) : (
+          <Row label="API anahtarı">
+            <input type="text" value={sfToken} onChange={(e) => setSfToken(e.target.value)} placeholder="token" style={{ width: 200 }} />
+            <button
+              className="btn"
+              disabled={!sfToken.trim() || !window.fh}
+              onClick={async () => {
+                setSfErr(null);
+                try {
+                  const next = await window.fh!.sfConnect(sfToken.trim());
+                  update({ sketchfab: next.sketchfab });
+                  setSfToken('');
+                } catch {
+                  setSfErr('Anahtar doğrulanamadı');
+                }
+              }}
+            >
+              Bağla
+            </button>
+          </Row>
+        )}
+        {sfErr && <div style={{ color: 'var(--bad)', padding: '4px 0' }}>{sfErr}</div>}
+        <Row label="Otomatik indir" hint="Yeni bir araca bindiğinde en uygun modeli kendisi bulup indirir">
+          <button className={`toggle ${settings.autoModels ? 'on' : ''}`} onClick={() => update({ autoModels: !settings.autoModels })} aria-label="Otomatik indir" />
+        </Row>
+        <Row label="İndirilen modeller">
+          <span className="mono">{settings.customModels.filter((m) => m.source === 'sketchfab').length}</span>
+        </Row>
+      </Section>
+
       <Section title="Birimler">
         <Row label="Hız">
           <Seg value={units.speed} options={[['kmh', 'km/h'], ['mph', 'mph']]} onChange={(v) => setUnit('speed', v)} />
@@ -83,11 +134,11 @@ export function SettingsPage() {
 
       <Section title="Araç isimleri">
         <p className="muted" style={{ marginTop: 0, lineHeight: 1.5 }}>
-          Oyun aracın adını değil yalnızca kimlik numarasını gönderir. Kullandığın araçlara isim verebilirsin.
+          Oyun yalnızca araç numarasını gönderir; {carCount} FH6 aracının adı uygulamada kayıtlı. Listede olmayan ya da farklı görünmesini istediğin araçlara isim verebilirsin.
         </p>
         {f.carOrdinal > 0 && (
           <Row label={`Şu anki araç #${f.carOrdinal}`}>
-            <input type="text" placeholder={settings.carNames[String(f.carOrdinal)] ?? 'ör. Toyota GR Yaris'} value={carName} onChange={(e) => setCarName(e.target.value)} style={{ width: 200 }} />
+            <input type="text" placeholder={settings.carNames[String(f.carOrdinal)] ?? knownCarName(f.carOrdinal) ?? 'ör. Toyota GR Yaris'} value={carName} onChange={(e) => setCarName(e.target.value)} style={{ width: 200 }} />
             <button
               className="btn"
               disabled={!carName.trim()}
