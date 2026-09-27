@@ -23,6 +23,8 @@ export interface Settings {
   autoModels: boolean;
   /** 3D scene look */
   scene: 'day' | 'sunset' | 'night';
+  /** 3D ground surface */
+  ground: 'wet' | 'asphalt' | 'concrete' | 'sand' | 'snow' | 'grass' | 'neon';
   /** post-processing (bloom, ambient occlusion…) */
   fx: boolean;
 }

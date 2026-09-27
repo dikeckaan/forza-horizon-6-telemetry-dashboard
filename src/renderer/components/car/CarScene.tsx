@@ -9,6 +9,7 @@ import { fToC } from '../../../shared/units';
 import { tireTempColor } from '../colors';
 import { loadModel, prepareRig, type CarRig } from './rig';
 import type { ModelDef } from './models';
+import { GROUNDS, type GroundId } from './grounds';
 
 export type CameraMode = 'chase' | 'orbit' | 'top';
 
@@ -117,7 +118,7 @@ interface ScenePreset {
 const SCENES: Record<SceneId, ScenePreset> = {
   day: { hdr: './env/day.hdr', sun: { position: [-6, 12, 5], color: '#fff4e2', intensity: 2.6 }, fog: ['#b9c6d3', 40, 160], env: 1, background: 1, road: '#4a4c52', wet: 0.35, bloom: 0.25, exposure: 0.95, lights: false, skyYaw: 0 },
   sunset: { hdr: './env/sunset.hdr', sun: { position: [6, 4, 22], color: '#ffae6b', intensity: 2.2 }, fog: ['#d9a07c', 30, 140], env: 1.1, background: 1, road: '#3f3b3a', wet: 0.7, bloom: 0.55, exposure: 1.0, lights: true, skyYaw: Math.PI },
-  night: { hdr: './env/night.hdr', sun: { position: [5, 12, 4], color: '#9fb4ff', intensity: 0.25 }, fog: ['#07090f', 25, 120], env: 0.28, background: 0.22, road: '#1d1f24', wet: 1, bloom: 0.7, exposure: 1.0, lights: true, skyYaw: 0 },
+  night: { hdr: './env/night.hdr', sun: { position: [-4, 14, -6], color: '#a9bcff', intensity: 1.1 }, fog: ['#0a0d16', 30, 130], env: 0.55, background: 0.45, road: '#2a2d35', wet: 1, bloom: 0.8, exposure: 1.1, lights: true, skyYaw: 0 },
 };
 
 // ---------- model loading ----------
@@ -297,84 +298,72 @@ function Exhaust({ rig }: { rig: CarRig }) {
 // ---------- road ----------
 
 const ROAD = 240;
-/** metres covered by one repeat of the fine asphalt grain */
-const TILE = 2;
+/** the road mesh jumps in steps of this size, so every texture stays fixed to the world */
+const SNAP = 60;
 
-/** Isotropic asphalt grain (no cracks or streaks, so it never hints a direction). */
-function grainTexture() {
-  const c = document.createElement('canvas');
-  c.width = c.height = 512;
-  const g = c.getContext('2d')!;
-  g.fillStyle = '#5a5a5d';
-  g.fillRect(0, 0, 512, 512);
-  for (let i = 0; i < 26000; i++) {
-    const v = 50 + Math.random() * 70;
-    const r = Math.random() < 0.08 ? 1.6 + Math.random() * 1.4 : 0.6 + Math.random() * 0.9;
-    g.fillStyle = `rgb(${v},${v},${v + 3})`;
-    g.beginPath();
-    g.arc(Math.random() * 512, Math.random() * 512, r, 0, Math.PI * 2);
-    g.fill();
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.repeat.set(ROAD / TILE, ROAD / TILE);
-  t.anisotropy = 16;
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-
-/** Large soft blotches: where the road is wetter it reflects more. */
-function puddleTexture() {
-  const c = document.createElement('canvas');
-  c.width = c.height = 256;
-  const g = c.getContext('2d')!;
-  g.fillStyle = '#c8c8c8';
-  g.fillRect(0, 0, 256, 256);
-  for (let i = 0; i < 40; i++) {
-    const x = Math.random() * 256;
-    const y = Math.random() * 256;
-    const r = 12 + Math.random() * 40;
-    const grd = g.createRadialGradient(x, y, 0, x, y, r);
-    grd.addColorStop(0, 'rgba(40,40,40,0.9)');
-    grd.addColorStop(1, 'rgba(40,40,40,0)');
-    g.fillStyle = grd;
-    g.fillRect(x - r, y - r, r * 2, r * 2);
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.repeat.set(ROAD / 30, ROAD / 30);
-  return t;
-}
-
-function Road({ motion, preset }: { motion: React.MutableRefObject<Motion>; preset: ScenePreset }) {
-  const map = useMemo(grainTexture, []);
-  const rough = useMemo(puddleTexture, []);
+function Road({ motion, preset, ground }: { motion: React.MutableRefObject<Motion>; preset: ScenePreset; ground: GroundId }) {
+  const look = GROUNDS[ground];
+  const tex = useMemo(() => {
+    const rep = (t: THREE.Texture, metres: number) => {
+      t.repeat.set(ROAD / metres, ROAD / metres);
+      return t;
+    };
+    return {
+      map: rep(look.map(), look.tile),
+      roughnessMap: look.roughnessMap ? rep(look.roughnessMap(), 30) : null,
+      emissiveMap: look.emissiveMap ? rep(look.emissiveMap(), look.tile) : null,
+    };
+  }, [look]);
   const ref = useRef<THREE.Mesh>(null);
   useFrame(() => {
-    // stays under the car but only moves by whole puddle tiles, so the surface is fixed to the world
     const m = motion.current;
-    ref.current?.position.set(Math.round(m.x / 30) * 30, 0, Math.round(m.z / 30) * 30);
+    ref.current?.position.set(Math.round(m.x / SNAP) * SNAP, 0, Math.round(m.z / SNAP) * SNAP);
   });
+  // wet looks: darker in daylight, mirror-like at night
+  const wet = look.reflect * (ground === 'wet' ? preset.wet : 1);
   return (
     <mesh ref={ref} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
       <planeGeometry args={[ROAD, ROAD]} />
-      <MeshReflectorMaterial
-        map={map}
-        roughnessMap={rough}
-        color={preset.road}
-        roughness={1}
-        metalness={0.1}
-        blur={[500, 200]}
-        resolution={1536}
-        mixBlur={1}
-        mixStrength={preset.wet * 3}
-        mixContrast={1}
-        depthScale={1.1}
-        minDepthThreshold={0.4}
-        maxDepthThreshold={1.3}
-        mirror={0}
-      />
+      {wet > 0.05 ? (
+        <MeshReflectorMaterial
+          key={ground}
+          map={tex.map}
+          roughnessMap={tex.roughnessMap}
+          emissiveMap={tex.emissiveMap}
+          emissive={look.emissive ?? '#000'}
+          emissiveIntensity={look.emissive ? 2.2 : 0}
+          color={ground === 'wet' ? preset.road : look.color}
+          roughness={look.roughness}
+          metalness={look.metalness}
+          blur={[500, 200]}
+          resolution={1536}
+          mixBlur={1}
+          mixStrength={wet * 3}
+          mixContrast={1}
+          depthScale={1.1}
+          minDepthThreshold={0.4}
+          maxDepthThreshold={1.3}
+          mirror={0}
+        />
+      ) : (
+        <meshStandardMaterial key={ground} map={tex.map} roughnessMap={tex.roughnessMap} color={look.color} roughness={look.roughness} metalness={look.metalness} envMapIntensity={0.5} />
+      )}
     </mesh>
+  );
+}
+
+// ---------- night lighting ----------
+
+/** Night needs light the camera can see: a street-lamp fill from behind and a neon underglow. */
+function NightLights({ rig }: { rig: CarRig }) {
+  const target = useMemo(() => new THREE.Object3D(), []);
+  return (
+    <group>
+      <primitive object={target} position={[0, 0.5, 0]} />
+      <spotLight position={[3, 9, -9]} target={target} angle={0.55} penumbra={0.8} intensity={140} distance={30} decay={1.6} color="#ffd9a8" />
+      <pointLight position={[0, 0.18, 0]} intensity={14} distance={rig.length * 0.9} decay={1.5} color="#ff2e88" />
+      <pointLight position={[0, 0.18, rig.length * 0.3]} intensity={8} distance={rig.length * 0.7} decay={1.5} color="#2de2e6" />
+    </group>
   );
 }
 
@@ -414,7 +403,7 @@ function Headlights({ rig, on }: { rig: CarRig; on: boolean }) {
 
 const SMOKE = 260;
 
-function Smoke({ rig, motion }: { rig: CarRig; motion: React.MutableRefObject<Motion> }) {
+function Smoke({ rig, motion, tint }: { rig: CarRig; motion: React.MutableRefObject<Motion>; tint: [number, number, number] }) {
   const geo = useMemo(() => {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(SMOKE * 3), 3));
@@ -427,13 +416,16 @@ function Smoke({ rig, motion }: { rig: CarRig; motion: React.MutableRefObject<Mo
       new THREE.ShaderMaterial({
         transparent: true,
         depthWrite: false,
-        uniforms: { scale: { value: 420 } },
+        uniforms: { scale: { value: 420 }, tint: { value: new THREE.Vector3(0.78, 0.8, 0.85) } },
         vertexShader: `attribute float alpha; attribute float size; varying float vA; uniform float scale;
           void main(){ vA = alpha; vec4 mv = modelViewMatrix * vec4(position,1.0); gl_PointSize = size * scale / -mv.z; gl_Position = projectionMatrix * mv; }`,
-        fragmentShader: `varying float vA; void main(){ float d = length(gl_PointCoord - 0.5); if (d > 0.5) discard; float s = smoothstep(0.5, 0.0, d); gl_FragColor = vec4(vec3(0.78,0.8,0.85), vA * s * 0.55); }`,
+        fragmentShader: `varying float vA; uniform vec3 tint; void main(){ float d = length(gl_PointCoord - 0.5); if (d > 0.5) discard; float s = smoothstep(0.5, 0.0, d); gl_FragColor = vec4(tint, vA * s * 0.55); }`,
       }),
     [],
   );
+  useEffect(() => {
+    mat.uniforms.tint.value.set(...tint);
+  }, [mat, tint]);
   const parts = useRef(Array.from({ length: SMOKE }, () => ({ life: 0, max: 1, x: 0, y: 0, z: 0, vx: 0, vy: 0 })));
   const next = useRef(0);
   const acc = useRef(0);
@@ -494,7 +486,7 @@ function Smoke({ rig, motion }: { rig: CarRig; motion: React.MutableRefObject<Mo
 
 const MARKS = 1400;
 
-function SkidMarks({ rig, motion }: { rig: CarRig; motion: React.MutableRefObject<Motion> }) {
+function SkidMarks({ rig, motion, color, opacity }: { rig: CarRig; motion: React.MutableRefObject<Motion>; color: string; opacity: number }) {
   const ref = useRef<THREE.InstancedMesh>(null);
   // each mark is a segment joining two consecutive contact points of one wheel
   const data = useRef(Array.from({ length: MARKS }, () => ({ x: 0, z: -999, len: 0, rot: 0 })));
@@ -507,6 +499,10 @@ function SkidMarks({ rig, motion }: { rig: CarRig; motion: React.MutableRefObjec
     return g;
   }, []);
   const mat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#000', transparent: true, opacity: 0.5, depthWrite: false }), []);
+  useEffect(() => {
+    mat.color.set(color);
+    mat.opacity = opacity;
+  }, [mat, color, opacity]);
   const markW = Math.min(0.3, rig.wheels[0].width || 0.25) * 0.8;
   const epoch = useRef(0);
 
@@ -623,6 +619,7 @@ export function CarScene({
   camera,
   scene = 'day',
   fx = true,
+  ground = 'wet',
 }: {
   model: ModelDef;
   paint: string;
@@ -632,6 +629,7 @@ export function CarScene({
   camera: CameraMode;
   scene?: SceneId;
   fx?: boolean;
+  ground?: GroundId;
 }) {
   const { rig, error } = useRig(model, paint, flip);
   const motion = useRef<Motion>(newMotion());
@@ -675,14 +673,15 @@ export function CarScene({
           <>
             <Car rig={rig} xray={xray} exaggerate={exaggerate} />
             <Headlights rig={rig} on={preset.lights} />
+            {scene === 'night' && <NightLights rig={rig} />}
           </>
         )}
         <Ground motion={motion}>
-          <Road motion={motion} preset={preset} />
+          <Road motion={motion} preset={preset} ground={ground} />
           {rig && (
             <>
-              <SkidMarks rig={rig} motion={motion} />
-              <Smoke rig={rig} motion={motion} />
+              <SkidMarks rig={rig} motion={motion} color={GROUNDS[ground].mark.color} opacity={GROUNDS[ground].mark.opacity} />
+              <Smoke rig={rig} motion={motion} tint={GROUNDS[ground].smoke} />
             </>
           )}
         </Ground>

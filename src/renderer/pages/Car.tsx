@@ -2,6 +2,7 @@ import { lazy, Suspense, useState } from 'react';
 import { useFrame, useSettings, useUnits } from '../hooks';
 import { allModels, autoPaint, PAINTS, resolveModel, type ModelSource } from '../components/car/models';
 import { Library } from '../components/car/Library';
+import { GROUND_LABELS, type GroundId } from '../components/car/grounds';
 import { useDownloadState } from '../autoModel';
 import { carName as nameOf, searchName } from '../../shared/cars';
 import type { Settings } from '../../shared/ipc';
@@ -31,6 +32,7 @@ export function CarPage() {
   const paint = settings.carPaints[ord] ?? (model.original ? 'original' : autoPaint(f.carOrdinal));
   const flip = !!settings.modelFlips[model.id];
   const [library, setLibrary] = useState(false);
+  const [groundMenu, setGroundMenu] = useState(false);
   const dl = useDownloadState();
   const realName = nameOf(f.carOrdinal, settings.carNames);
 
@@ -81,7 +83,7 @@ export function CarPage() {
         <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 60, zIndex: 1, pointerEvents: 'none', background: 'linear-gradient(rgba(7,8,11,0), rgba(7,8,11,.7))' }} />
         <div style={{ position: 'absolute', inset: 0 }}>
           <Suspense fallback={<div className="empty">3D yükleniyor…</div>}>
-            <CarScene model={model} paint={paint} flip={flip} xray={xray} exaggerate={ex} camera={cam} scene={settings.scene} fx={settings.fx} />
+            <CarScene model={model} paint={paint} flip={flip} xray={xray} exaggerate={ex} camera={cam} scene={settings.scene} fx={settings.fx} ground={settings.ground} />
           </Suspense>
         </div>
 
@@ -163,6 +165,27 @@ export function CarPage() {
                   {l}
                 </button>
               ))}
+            </div>
+            <div style={{ position: 'relative' }}>
+              <button className="btn" onClick={() => setGroundMenu((v) => !v)} title="Zemin">
+                {GROUND_LABELS[settings.ground]} ▾
+              </button>
+              {groundMenu && (
+                <div className="panel" style={{ position: 'absolute', top: 38, right: 0, zIndex: 5, padding: 6, minWidth: 170, background: '#11141b', boxShadow: '0 20px 50px rgba(0,0,0,.5)' }}>
+                  {(Object.keys(GROUND_LABELS) as GroundId[]).map((g) => (
+                    <MenuItem
+                      key={g}
+                      active={settings.ground === g}
+                      onClick={() => {
+                        update({ ground: g });
+                        setGroundMenu(false);
+                      }}
+                    >
+                      {GROUND_LABELS[g]}
+                    </MenuItem>
+                  ))}
+                </div>
+              )}
             </div>
             <button className={`btn ${settings.fx ? 'primary' : ''}`} onClick={() => update({ fx: !settings.fx })} title="Parlama, ortam gölgesi, sinematik görüntü (zayıf ekran kartlarında kapat)">
               Efektler

@@ -19,6 +19,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sketchfab: { connected: false, account: '' },
   autoModels: true,
   scene: 'day',
+  ground: 'wet',
   fx: true,
 };
 
