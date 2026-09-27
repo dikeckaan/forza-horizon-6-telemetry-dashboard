@@ -1,0 +1,207 @@
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { createSocket, type Socket } from 'node:dgram';
+import { networkInterfaces } from 'node:os';
+import { join } from 'node:path';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { parsePacket } from '../shared/packet';
+import { DemoSim } from '../shared/demo';
+import type { Settings, Status } from '../shared/ipc';
+import { loadSettings, saveSettings } from './settings';
+import { Recorder, deleteSession, listSessions, sessionToCsv } from './sessions';
+
+const here = fileURLToPath(new URL('.', import.meta.url));
+const devUrl = process.env.VITE_DEV_URL;
+
+let win: BrowserWindow | null = null;
+let settings: Settings;
+let sock: Socket | null = null;
+let fwd: Socket | null = null;
+let recorder: Recorder;
+let demoTimer: NodeJS.Timeout | null = null;
+
+const sessionsDir = () => join(app.getPath('userData'), 'sessions');
+
+const status: Status = {
+  listening: false,
+  port: 20440,
+  error: null,
+  packetsPerSec: 0,
+  source: null,
+  lastPacketAt: 0,
+  packetSize: 0,
+  demo: false,
+  recording: { active: false, name: null, packets: 0 },
+  localAddresses: [],
+};
+let packetCount = 0;
+
+function localAddresses() {
+  const out: string[] = [];
+  for (const list of Object.values(networkInterfaces())) {
+    for (const a of list ?? []) if (a.family === 'IPv4' && !a.internal) out.push(a.address);
+  }
+  return out;
+}
+
+function handlePacket(buf: Uint8Array, source: string, fromDemo = false) {
+  packetCount++;
+  status.lastPacketAt = Date.now();
+  status.source = source;
+  status.packetSize = buf.byteLength;
+  const f = parsePacket(buf);
+  if (!f) return;
+  if (!fromDemo && settings.record) recorder.push(buf, f);
+  if (!fromDemo && settings.forward.enabled && fwd) {
+    fwd.send(buf, settings.forward.port, settings.forward.host);
+  }
+  win?.webContents.send('packet', buf);
+}
+
+function startUdp() {
+  stopUdp();
+  status.port = settings.port;
+  status.error = null;
+  const s = createSocket({ type: 'udp4', reuseAddr: true });
+  s.on('message', (msg, rinfo) => {
+    // copy out of Node's pooled buffer before sending over IPC
+    handlePacket(new Uint8Array(msg), `${rinfo.address}:${rinfo.port}`);
+  });
+  s.on('error', (err) => {
+    status.error = (err as NodeJS.ErrnoException).code === 'EADDRINUSE' ? `Port ${settings.port} kullanımda` : err.message;
+    status.listening = false;
+    pushStatus();
+  });
+  s.on('listening', () => {
+    status.listening = true;
+    pushStatus();
+  });
+  s.bind(settings.port, '0.0.0.0');
+  sock = s;
+  fwd = createSocket('udp4');
+}
+
+function stopUdp() {
+  sock?.close();
+  fwd?.close();
+  sock = null;
+  fwd = null;
+  status.listening = false;
+}
+
+function applyDemo() {
+  if (demoTimer) clearInterval(demoTimer);
+  demoTimer = null;
+  status.demo = settings.demo;
+  if (!settings.demo) return;
+  const sim = new DemoSim();
+  // warm up so tires and laps look alive
+  for (let i = 0; i < 60 * 5; i++) sim.step(1 / 60);
+  demoTimer = setInterval(() => handlePacket(new Uint8Array(sim.stepPacket(1 / 60)), 'demo', true), 1000 / 60);
+}
+
+function pushStatus() {
+  status.recording = { active: recorder.active, name: recorder.name, packets: recorder.packets };
+  win?.webContents.send('status', status);
+}
+
+function createWindow() {
+  win = new BrowserWindow({
+    width: 1480,
+    height: 920,
+    minWidth: 1100,
+    minHeight: 700,
+    backgroundColor: '#07080b',
+    title: 'FH Telemetry',
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    trafficLightPosition: { x: 16, y: 18 },
+    webPreferences: {
+      preload: join(here, '../preload/preload.cjs'),
+      contextIsolation: true,
+      sandbox: true,
+      backgroundThrottling: false,
+    },
+  });
+  win.setMenuBarVisibility(false);
+  if (devUrl) win.loadURL(devUrl);
+  else win.loadFile(join(here, '../renderer/index.html'));
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  win.on('closed', () => (win = null));
+
+  // Dev aid: FH_CAPTURE=/path/prefix FH_CAPTURE_PAGES=1,2,3 writes a PNG per page after startup.
+  const capture = process.env.FH_CAPTURE;
+  if (capture) {
+    const pages = (process.env.FH_CAPTURE_PAGES ?? '1').split(',');
+    win.webContents.once('did-finish-load', async () => {
+      for (const p of pages) {
+        await new Promise((r) => setTimeout(r, 4000));
+        await win?.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown', { key: '${p}' }))`);
+        await new Promise((r) => setTimeout(r, 2500));
+        const img = await win?.webContents.capturePage();
+        if (img) writeFileSync(`${capture}-${p}.png`, img.toPNG());
+      }
+    });
+  }
+}
+
+function registerIpc() {
+  ipcMain.handle('settings:get', () => settings);
+  ipcMain.handle('settings:set', (_e, patch: Partial<Settings>) => {
+    const prev = settings;
+    settings = { ...settings, ...patch };
+    saveSettings(settings);
+    if (patch.port !== undefined && patch.port !== prev.port) startUdp();
+    if (patch.demo !== undefined && patch.demo !== prev.demo) applyDemo();
+    if (patch.record === false) recorder.close();
+    pushStatus();
+    return settings;
+  });
+  ipcMain.handle('sessions:list', () => listSessions(sessionsDir()));
+  ipcMain.handle('sessions:read', (_e, name: string) => {
+    if (name.includes('/') || name.includes('\\')) throw new Error('bad name');
+    return new Uint8Array(readFileSync(join(sessionsDir(), name)));
+  });
+  ipcMain.handle('sessions:delete', (_e, name: string) => deleteSession(sessionsDir(), name));
+  ipcMain.handle('sessions:csv', async (_e, name: string) => {
+    if (name.includes('/') || name.includes('\\')) throw new Error('bad name');
+    const res = await dialog.showSaveDialog(win!, { defaultPath: name.replace(/\.fhs$/, '.csv'), filters: [{ name: 'CSV', extensions: ['csv'] }] });
+    if (res.canceled || !res.filePath) return null;
+    writeFileSync(res.filePath, sessionToCsv(readFileSync(join(sessionsDir(), name))));
+    return res.filePath;
+  });
+  ipcMain.handle('sessions:reveal', () => shell.openPath(sessionsDir()));
+}
+
+app.whenReady().then(() => {
+  settings = loadSettings();
+  recorder = new Recorder(sessionsDir());
+  status.localAddresses = localAddresses();
+  registerIpc();
+  createWindow();
+  startUdp();
+  applyDemo();
+
+  setInterval(() => {
+    status.packetsPerSec = packetCount;
+    packetCount = 0;
+    recorder.tick();
+    status.localAddresses = localAddresses();
+    pushStatus();
+  }, 1000);
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+});
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit();
+});
+
+app.on('before-quit', () => {
+  recorder?.close();
+  stopUdp();
+});
